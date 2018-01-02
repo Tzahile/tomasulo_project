@@ -10,9 +10,14 @@ extern char op_name[][NUM_OF_OP_CODES];
 extern char reg_name[][NUM_OF_REGISTERS];
 extern double reg_values[NUM_OF_REGISTERS];
 extern Station *add_sub_res_stations, *mul_res_stations, *divide_res_stations, *load_res_stations, *store_res_stations;
-extern int mem[MEM_SIZE]; //PC, current_inst_queue_size;
+extern int mem[MEM_SIZE];
 extern InstQueue inst_queue[INST_QUEUE_SIZE];
 extern Registers registers[NUM_OF_REGISTERS];
+
+void ClearResSlot(Station *res_station, int offset);
+void SetReadyForExec(Station *res_station, int size, int cycle);
+int GetNumberOfWorkingExecUnits(Station *res_station, int size);
+void EnterToExec(Station *res_station, int res_size, int nr_of_exec_units, int nr_of_working_exec_units, int cycle, int cycles_in_exec);
 
 void PrepareReservationStations(CfgParameters *cfg_parameters) {
 	add_sub_res_stations = (Station *)calloc(cfg_parameters->add_nr_reservation, sizeof(Station));
@@ -39,7 +44,6 @@ void PrepareReservationStations(CfgParameters *cfg_parameters) {
 
 PutInReservationStation(Station *required_res_station, int inst_queue_size) {
 	int op = inst_queue[inst_queue_size].op;
-	//strcpy(required_res_station->command, op_name[0][op]);
 	required_res_station->is_busy = true;
 }
 
@@ -87,108 +91,108 @@ void EnterToReservationStation(InstQueue inst, Station *res_station, int *size, 
 	{
 	case OP_ADD:
 		res_station[*size].is_add = true;
-		//res_station[*size].ready_in_cycle = cycle + cfg_parameters->add_delay;
 		break;
 	case OP_SUB:
 		res_station[*size].is_sub = true;
-		//res_station[*size].ready_in_cycle = cycle + cfg_parameters->add_delay;
 		break;
 	case OP_LD:
 		res_station[*size].is_ld = true;
-		//res_station[*size].ready_in_cycle = cycle + cfg_parameters->mem_delay;
 		break;
 	}
 	res_station[*size].is_busy = true;
-	//(*size)++;
-	//if (inst.op == OP_ADD)
-	//{
-
-	//}
 }
 
-void Exec(CfgParameters *cfg_parameters, int cycle) {
-
-}
-
-void UpdateReservationStationsData(CfgParameters *cfg_parameters, int cycle, int add_sub_res_stations_size, int mul_res_stations_size,
+void Exec(CfgParameters *cfg_parameters, int cycle, int add_sub_res_stations_size, int mul_res_stations_size,
 	 int divide_res_stations_size, int load_res_stations_size, int store_res_stations_size)
 {
-	int i;
+	int current_add_sub_in_exec = 0, working_units = 0;
 	bool is_add_sub_exec_busy = false, is_mul_exec_busy = false, is_divide_res_stations_busy = false;
+	working_units = GetNumberOfWorkingExecUnits(add_sub_res_stations, add_sub_res_stations_size);
+	SetReadyForExec(add_sub_res_stations, add_sub_res_stations_size, cycle);
+	EnterToExec(add_sub_res_stations, add_sub_res_stations_size, cfg_parameters->add_nr_units, working_units, cycle, cfg_parameters->add_delay);
+	//CDB();
+}
 
-	// checking if exec unit is busy
+CheckIfInstFinishedExec(CfgParameters *cfg_parameters, int cycle, int add_sub_res_stations_size, int mul_res_stations_size,
+	int divide_res_stations_size, int load_res_stations_size, int store_res_stations_size)
+{
+	int i;
 	for (i = 0; i < add_sub_res_stations_size; i++)
 	{
-		if (add_sub_res_stations[i].is_in_exec == true)
+		if (cycle == add_sub_res_stations[i].cycle_to_finish_exec)
 		{
-			is_add_sub_exec_busy = true;
-		}
-	}
 
-	for (i = 0; i < mul_res_stations_size; i++)
-	{
-		if (mul_res_stations[i].is_in_exec == true)
-		{
-			is_mul_exec_busy = true;
+			ClearResSlot(add_sub_res_stations, i);
+			break;
 		}
 	}
+}
 
-	for (i = 0; i < divide_res_stations_size; i++)
-	{
-		if (divide_res_stations[i].is_in_exec == true)
-		{
-			is_divide_res_stations_busy = true;
-		}
-	}
+void ClearResSlot(Station *res_station, int offset)
+{
+	res_station[offset].addr = 0;
+	res_station[offset].command = NULL;
+	res_station[offset].cycle_entered = 0;
+	res_station[offset].cycle_to_finish_exec = 0;
+	res_station[offset].is_add = false;
+	res_station[offset].is_busy = false;
+	res_station[offset].is_div = false;
+	res_station[offset].is_halt = false;
+	res_station[offset].is_in_exec = false;
+	res_station[offset].is_ld = false;
+	res_station[offset].is_mult = false;
+	res_station[offset].is_ready_for_exec = false;
+	res_station[offset].is_st = false;
+	res_station[offset].is_sub = false;
+	res_station[offset].q_j = 0;
+	res_station[offset].q_j_station_offset = 0;
+	res_station[offset].q_k = 0;
+	res_station[offset].q_k_station_offset = 0;
+	res_station[offset].v_j = 0;
+	res_station[offset].v_k = 0;
+}
 
-	for (i = 0; i < load_res_stations_size; i++)
+void SetReadyForExec(Station *res_station, int size, int cycle)
+{
+	int i;
+	for (i = 0; i < size; i++)
 	{
-		if (load_res_stations[i].is_in_exec == true)
+		if ((cycle > res_station[i].cycle_entered) && res_station[i].is_in_exec == false && res_station[i].q_j == 0 && res_station[i].q_k == 0)
 		{
-			is_divide_res_stations_busy = true;
+			res_station[i].is_ready_for_exec = true;
+		}
+		else
+		{
+			res_station[i].is_ready_for_exec = false;
 		}
 	}
-	//
-	// enter to apropriate exec if the exec is not busy
-	if (is_add_sub_exec_busy == false)
+}
+
+int GetNumberOfWorkingExecUnits(Station *res_station, int size)
+{
+	int i, counter = 0;
+	for (i = 0; i < size; i++)
 	{
-		for (i = 0; i < add_sub_res_stations_size; i++)
+		if (res_station[i].is_in_exec == true) {
+			counter++;
+		}
+	}
+	return counter;
+}
+
+void EnterToExec(Station *res_station, int res_size, int nr_of_exec_units, int nr_of_working_exec_units, int cycle, int cycles_in_exec)
+{
+	int i, nr_of_empty_exec_units = nr_of_exec_units - nr_of_working_exec_units;
+	for (i = 0; i < res_size; i++)
+	{
+		if (res_station[i].is_ready_for_exec == true)
 		{
-			if (add_sub_res_stations[i].is_ready_for_exec == cycle)
-			{
-				add_sub_res_stations[i].is_in_exec = true;
+			if (nr_of_empty_exec_units == 0) {
 				break;
 			}
+			res_station[i].is_in_exec = true;
+			res_station[i].cycle_to_finish_exec = cycle + cycles_in_exec;
+			nr_of_empty_exec_units--;
 		}
 	}
-
-	if (is_mul_exec_busy == false)
-	{
-		for (i = 0; i < mul_res_stations_size; i++)
-		{
-			if (mul_res_stations[i].is_ready_for_exec == cycle)
-			{
-				mul_res_stations[i].is_in_exec = true;
-				break;
-			}
-		}
-	}
-
-	if (is_divide_res_stations_busy == false)
-	{
-		for (i = 0; i < divide_res_stations_size; i++)
-		{
-			if (divide_res_stations[i].is_ready_for_exec == cycle)
-			{
-				divide_res_stations[i].is_in_exec = true;
-				break;
-			}
-		}
-	}
-
-
-		/*if (cycle = add_sub_res_stations[i].cycle_entered + 1)
-		{
-			add_sub_res_stations[i].is_ready_for_exec = true;
-		}*/
 }

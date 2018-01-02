@@ -8,7 +8,6 @@
 typedef struct _Registers {
 	char *reg_name;
 	double V;
-	//char *Q;
 	int Q; // ADD_SUB_RESORVATION_STATION 1, MUL_RESORVATION_STATION 2, DIV_RESORVATION_STATION 3
 	int station_offset;
 } Registers;

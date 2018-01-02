@@ -13,8 +13,8 @@ double reg_values[NUM_OF_REGISTERS] = { 0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12
 int mem[MEM_SIZE] = { 0 };
 Station *add_sub_res_stations = NULL, *mul_res_stations = NULL, *divide_res_stations = NULL, *load_res_stations = NULL,
 		*store_res_stations = NULL;
-InstQueue inst_queue[INST_QUEUE_SIZE];
-Registers registers[NUM_OF_REGISTERS];
+InstQueue inst_queue[INST_QUEUE_SIZE] = { 0 };
+Registers registers[NUM_OF_REGISTERS] = { 0 };
 
 
 int main(int argc, char *argv[]) {
@@ -29,7 +29,6 @@ int main(int argc, char *argv[]) {
 	int PC = 0;
 	int inst_queue_size = 0, add_sub_res_stations_size = 0, mul_res_stations_size = 0,
 		divide_res_stations_size = 0, load_res_stations_size = 0, store_res_stations_size = 0;
-	//int op, dst, src0, src1, imm, inst;
 	err_code = OpenFiles(&files_struct, argv);
 	if (err_code == ERROR_CODE) {
 		return ERROR_CODE;
@@ -43,32 +42,32 @@ int main(int argc, char *argv[]) {
 
 	PC = 0;
 
-	//GoThroughMemFile()
-
 	// cycle 0
 	nr_instrs_read = Fetch(last, &PC, &inst_queue_size);
 	nr_instrs_read += Fetch(last, &PC, &inst_queue_size);
 	cycle++;
 	// end of cycle 0
-	while (PC <= last) {
-		// cycle 1
+	//while (PC <= last) {
+	while (true) {
+		// cycle 1, 2, 3, 4, ...
 		//EnterToExec(cycle, is_add_exec_occupied, is_mult_exec_occupied, is_div_exec_occupied);
+		//UpdateReservationStationsData(&cfg_parameters, cycle, add_sub_res_stations_size, mul_res_stations_size,
+		//	divide_res_stations_size, load_res_stations_size, store_res_stations_size);
 		Issue(&cfg_parameters, &inst_queue_size, &add_sub_res_stations_size, &mul_res_stations_size,
 			&divide_res_stations_size, &load_res_stations_size, &store_res_stations_size, cycle);
 		Issue(&cfg_parameters, &inst_queue_size, &add_sub_res_stations_size, &mul_res_stations_size,
 			&divide_res_stations_size, &load_res_stations_size, &store_res_stations_size, cycle);
-		UpdateReservationStationsData(&cfg_parameters, cycle, add_sub_res_stations_size, mul_res_stations_size,
+		Exec(&cfg_parameters, cycle, add_sub_res_stations_size, mul_res_stations_size,
 			divide_res_stations_size, load_res_stations_size, store_res_stations_size);
 		nr_instrs_read = Fetch(last, &PC, &inst_queue_size);
 		nr_instrs_read += Fetch(last, &PC, &inst_queue_size);
-		// end of cycle 1
-		//UpdateReservationStationsData(&cfg_parameters, cycle, add_sub_res_stations_size, mul_res_stations_size,
-		//	divide_res_stations_size, load_res_stations_size, store_res_stations_size);
+		// end of cycle 1, 2, 3, 4, ...
 		cycle++;
-		Issue(&cfg_parameters, &inst_queue_size, &add_sub_res_stations_size, &mul_res_stations_size,
+
+		/*Issue(&cfg_parameters, &inst_queue_size, &add_sub_res_stations_size, &mul_res_stations_size,
 			&divide_res_stations_size, &load_res_stations_size, &store_res_stations_size, cycle);
 		Issue(&cfg_parameters, &inst_queue_size, &add_sub_res_stations_size, &mul_res_stations_size,
-			&divide_res_stations_size, &load_res_stations_size, &store_res_stations_size, cycle);
+			&divide_res_stations_size, &load_res_stations_size, &store_res_stations_size, cycle);*/
 		//PC += nr_instrs_read;
 
 		//PC++;

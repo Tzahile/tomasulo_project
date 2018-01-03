@@ -6,8 +6,8 @@
 typedef struct _Station {
 	bool is_busy;
 	char *command;
-	double v_j;
-	double v_k;
+	float v_j;
+	float v_k;
 	int q_j;
 	int q_j_station_offset;
 	int q_k;
@@ -23,9 +23,15 @@ typedef struct _Station {
 	int cycle_entered;
 	bool is_ready_for_exec;
 	bool is_in_exec;
-
 	int cycle_to_finish_exec;
 }Station;
+
+typedef struct _CDB_status {
+	bool is_ADD_SUB_CDB_used;
+	bool is_MUL_CDB_used;
+	bool is_DIV_CDB_used;
+	bool is_MEM_CDB_used;
+} CDB_status;
 
 void PrepareReservationStations(CfgParameters *cfg_parameters);
 void EnterToReservationStation(InstQueue inst, Station *res_station, int *size, int cycle, CfgParameters *cfg_parameters);

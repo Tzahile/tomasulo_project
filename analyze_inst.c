@@ -43,7 +43,7 @@ void InitRegistersStruct() {
 	int i = 0;
 	for (i = 0; i < NUM_OF_REGISTERS; i++) {
 		registers[i].reg_name = reg_name[i];
-		registers[i].V = (double)i;
+		registers[i].V = (float)i;
 		registers[i].Q = 0;
 		registers[i].station_offset = 0;
 	}

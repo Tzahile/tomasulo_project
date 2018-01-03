@@ -22,4 +22,6 @@
 #define MULT_RESORVATION_STATION 2
 #define DIV_RESORVATION_STATION 3
 
+#define NR_OF_OPS 7
+
 #endif

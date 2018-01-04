@@ -5,7 +5,7 @@
 #include "io.h"
 #include "common.h"
 
-extern mem[MEM_SIZE];
+extern int mem[MEM_SIZE];
 
 bool OpenFiles(Files *files_struct, char *argv[]){
 	 files_struct->cfg = fopen(argv[1], "r");

@@ -2,7 +2,7 @@
 #define COMMON_H
 
 #define ERROR_CODE 1
-#define SECCESS 0
+#define SUCCESS 0
 #define NUM_OF_OP_CODES 7
 #define NUM_OF_REGISTERS 16
 #define MEM_SIZE 1<<12

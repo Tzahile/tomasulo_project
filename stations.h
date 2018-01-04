@@ -35,7 +35,9 @@ typedef struct _CDB_status {
 
 void PrepareReservationStations(CfgParameters *cfg_parameters);
 void EnterToReservationStation(InstQueue inst, Station *res_station, int *size, int cycle, CfgParameters *cfg_parameters);
-void Exec(CfgParameters *cfg_parameters, int cycle, int add_sub_res_stations_size, int mul_res_stations_size,
-	int divide_res_stations_size, int load_res_stations_size, int store_res_stations_size);
+//void Exec(CfgParameters *cfg_parameters, int cycle, int add_sub_res_stations_size, int mul_res_stations_size,
+//	int divide_res_stations_size, int load_res_stations_size, int store_res_stations_size);
+void Exec(CfgParameters *cfg_parameters, int cycle, int *add_sub_res_stations_size, int *mul_res_stations_size,
+	int *divide_res_stations_size, int *load_res_stations_size, int *store_res_stations_size);
 
 #endif

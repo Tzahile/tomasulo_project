@@ -23,7 +23,7 @@ int main(int argc, char *argv[]) {
 	CfgParameters cfg_parameters;
 	bool is_add_exec_occupied = false, is_mult_exec_occupied = false, is_div_exec_occupied = false;
 	int nr_instrs_read = 0;
-	int err_code = SECCESS, last = 0;
+	int err_code = SUCCESS, last = 0;
 	int cycle = 0;
 	int PC = 0;
 	int inst_queue_size = 0, add_sub_res_stations_size = 0, mul_res_stations_size = 0,
@@ -38,7 +38,6 @@ int main(int argc, char *argv[]) {
 	InitRegistersStruct();
 	ReadMem(&files_struct);
 	last = FindLastNotZeroAddress();
-
 	PC = 0;
 
 	// cycle 0
@@ -56,8 +55,8 @@ int main(int argc, char *argv[]) {
 			&divide_res_stations_size, &load_res_stations_size, &store_res_stations_size, cycle);
 		Issue(&cfg_parameters, &inst_queue_size, &add_sub_res_stations_size, &mul_res_stations_size,
 			&divide_res_stations_size, &load_res_stations_size, &store_res_stations_size, cycle);
-		Exec(&cfg_parameters, cycle, add_sub_res_stations_size, mul_res_stations_size,
-			divide_res_stations_size, load_res_stations_size, store_res_stations_size);
+		Exec(&cfg_parameters, cycle, &add_sub_res_stations_size, &mul_res_stations_size,
+			&divide_res_stations_size, &load_res_stations_size, &store_res_stations_size);
 		nr_instrs_read = Fetch(last, &PC, &inst_queue_size);
 		nr_instrs_read += Fetch(last, &PC, &inst_queue_size);
 		// end of cycle 1, 2, 3, 4, ...
@@ -71,5 +70,5 @@ int main(int argc, char *argv[]) {
 
 		//PC++;
 	}
-	return SECCESS;
+	return SUCCESS;
 }

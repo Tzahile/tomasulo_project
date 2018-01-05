@@ -2,7 +2,6 @@
 #define STATIONS_H
 
 #include <stdbool.h>
-
 #include "io.h"
 #include "analyze_inst.h"
 
@@ -16,8 +15,8 @@ typedef struct _Station {
 	int q_k;
 	int q_k_station_offset;
 	int addr;
-	bool is_ld;
-	bool is_st;
+	bool is_load;
+	bool is_store;
 	bool is_add;
 	bool is_sub;
 	bool is_mult;

@@ -5,6 +5,8 @@
 #include "io.h"
 #include "stations.h"
 #include "analyze_inst.h"
+#define LOAD_NR_UNITS 1
+#define STORE_NR_UNITS 1
 
 extern char op_name[][NUM_OF_OP_CODES];
 extern char reg_name[][NUM_OF_REGISTERS];
@@ -18,8 +20,8 @@ extern IssueList *issue_list;
 extern Files files_struct;
 
 void ClearResSlot(Station *res_station, int offset);
-void SetReadyForExec(Station *res_station, int size, int cycle);
-int GetNumberOfWorkingExecUnits(Station *res_station, int size);
+void SetReadyForExec(Station *res_station, int res_size, int cycle);
+int GetNumberOfWorkingExecUnits(Station *res_station, int res_size);
 void EnterToExec(Station *res_station, int res_size, int nr_of_exec_units, int nr_of_working_exec_units, int cycle, int cycles_in_exec);
 void RemoveLabel(Station *res_station, int type, int offset, int res_size, float dst_result);
 float DoArithmeticCalc(Station *inst);
@@ -113,11 +115,11 @@ void EnterToReservationStation(InstQueue inst, Station *res_station, int size, i
 	case OP_DIV:
 		res_station[size].is_div = true;
 		break;
-	case OP_ST:
-		res_station[size].is_st = true;
+	case OP_STORE:
+		res_station[size].is_store = true;
 		break;
-	case OP_LD:
-		res_station[size].is_ld = true;
+	case OP_LOAD:
+		res_station[size].is_load = true;
 		break;
 	case OP_HALT:
 		res_station[size].is_halt = true;
@@ -150,7 +152,7 @@ void EnterToIssueList(Station *res_station, int offset, int cycle)
 
 void Exec(CfgParameters *cfg_parameters, int cycle)
 {
-	int current_add_sub_in_exec = 0, working_units = 0;
+	int current_add_sub_in_exec = 0, working_units = 0, mem_working_units = 0;
 	bool is_add_sub_exec_busy = false, is_mul_exec_busy = false, is_divide_res_stations_busy = false;
 
 	// Add-SUB
@@ -168,15 +170,17 @@ void Exec(CfgParameters *cfg_parameters, int cycle)
 	SetReadyForExec(divide_res_stations, cfg_parameters->div_nr_reservation, cycle);
 	EnterToExec(divide_res_stations, cfg_parameters->div_nr_reservation, cfg_parameters->div_nr_units, working_units, cycle, cfg_parameters->div_delay);
 
-	// LD
-	working_units = GetNumberOfWorkingExecUnits(load_res_stations, 1);
+	// LOAD
+	working_units = GetNumberOfWorkingExecUnits(load_res_stations, cfg_parameters->mem_nr_load_buffers);
+	mem_working_units = working_units + GetNumberOfWorkingExecUnits(store_res_stations, cfg_parameters->mem_nr_store_buffers);
 	SetReadyForExec(load_res_stations, cfg_parameters->mem_nr_load_buffers, cycle);
-	EnterToExec(load_res_stations, cfg_parameters->mem_nr_load_buffers, 1, working_units, cycle, cfg_parameters->mem_delay);
+	EnterToExec(load_res_stations, cfg_parameters->mem_nr_load_buffers, LOAD_NR_UNITS, mem_working_units, cycle, cfg_parameters->mem_delay);
 
-	// ST
-	working_units = GetNumberOfWorkingExecUnits(store_res_stations, 1);
+	// STORE
+	working_units = GetNumberOfWorkingExecUnits(store_res_stations, cfg_parameters->mem_nr_store_buffers);
+	mem_working_units = working_units + GetNumberOfWorkingExecUnits(load_res_stations, cfg_parameters->mem_nr_load_buffers);
 	SetReadyForExec(store_res_stations, cfg_parameters->mem_nr_store_buffers, cycle);
-	EnterToExec(store_res_stations, cfg_parameters->mem_nr_store_buffers, 1, working_units, cycle, cfg_parameters->mem_delay);
+	EnterToExec(store_res_stations, cfg_parameters->mem_nr_store_buffers, STORE_NR_UNITS, mem_working_units, cycle, cfg_parameters->mem_delay);
 
 	// CDBs
 
@@ -189,7 +193,7 @@ void DealWithCDB(CfgParameters *cfg_parameters, int cycle)
 	CDB(cfg_parameters, mul_res_stations, cfg_parameters->mul_nr_reservation, cycle);
 	CDB(cfg_parameters, divide_res_stations, cfg_parameters->div_nr_reservation, cycle);
 	CDB(cfg_parameters, load_res_stations, cfg_parameters->mem_nr_load_buffers, cycle);
-	CDB(cfg_parameters, divide_res_stations, cfg_parameters->mem_nr_store_buffers, cycle);
+	CDB(cfg_parameters, store_res_stations, cfg_parameters->mem_nr_store_buffers, cycle);
 }
 
 void ClearResSlot(Station *res_station, int offset)
@@ -203,10 +207,10 @@ void ClearResSlot(Station *res_station, int offset)
 	res_station[offset].is_div = false;
 	res_station[offset].is_halt = false;
 	res_station[offset].is_in_exec = false;
-	res_station[offset].is_ld = false;
+	res_station[offset].is_load = false;
 	res_station[offset].is_mult = false;
 	res_station[offset].is_ready_for_exec = false;
-	res_station[offset].is_st = false;
+	res_station[offset].is_store = false;
 	res_station[offset].is_sub = false;
 	res_station[offset].q_j = 0;
 	res_station[offset].q_j_station_offset = 0;
@@ -218,10 +222,10 @@ void ClearResSlot(Station *res_station, int offset)
 	res_station[offset].PC = 0;
 }
 
-void SetReadyForExec(Station *res_station, int size, int cycle)
+void SetReadyForExec(Station *res_station, int res_size, int cycle)
 {
 	int i;
-	for (i = 0; i < size; i++)
+	for (i = 0; i < res_size; i++)
 	{
 		if (res_station[i].is_busy == true && (cycle > res_station[i].cycle_entered) && res_station[i].is_in_exec == false && res_station[i].q_j == 0 && res_station[i].q_k == 0)
 		{
@@ -234,10 +238,10 @@ void SetReadyForExec(Station *res_station, int size, int cycle)
 	}
 }
 
-int GetNumberOfWorkingExecUnits(Station *res_station, int size)
+int GetNumberOfWorkingExecUnits(Station *res_station, int res_size)
 {
 	int i, counter = 0;
-	for (i = 0; i < size; i++)
+	for (i = 0; i < res_size; i++)
 	{
 		if (res_station[i].is_in_exec == true) {
 			counter++;
@@ -432,7 +436,7 @@ void PrintTo_tracecdb_file(FILE *tracecdb_file, Station res_station, int offset,
 	{
 		fprintf(tracecdb_file, "DIV ");
 	}
-	else if (res_station.is_ld || res_station.is_st)
+	else if (res_station.is_load || res_station.is_store)
 	{
 		fprintf(tracecdb_file, "MEM ");
 	}
@@ -451,7 +455,7 @@ void PrintTo_tracecdb_file(FILE *tracecdb_file, Station res_station, int offset,
 	{
 		fprintf(tracecdb_file, "DIV");
 	}
-	else if (res_station.is_ld || res_station.is_st)
+	else if (res_station.is_load || res_station.is_store)
 	{
 		fprintf(tracecdb_file, "MEM");
 	}

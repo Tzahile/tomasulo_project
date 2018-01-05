@@ -7,7 +7,7 @@
 #include "analyze_inst.h"
 #include "stations.h"
 
-char op_name[][NUM_OF_OP_CODES] = { "LD", "ST", "ADD", "SUB", "MULT", "DIV", "HALT" };
+char op_name[][NUM_OF_OP_CODES] = { "LOAD", "STORE", "ADD", "SUB", "MULT", "DIV", "HALT" };
 char reg_name[][NUM_OF_REGISTERS] = { "F0", "F1", "F2", "F3", "F4", "F5", "F6", "F7", "F8", "F9", "F10", "F11", "F12",
 									  "F13", "F14", "F15" };
 float reg_values[NUM_OF_REGISTERS] = { 0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15 };

@@ -10,8 +10,8 @@
 #define OP_CODE_MAX_CHARS 5
 #define INST_QUEUE_SIZE 16
 
-#define OP_LD 0
-#define OP_ST 1
+#define OP_LOAD 0
+#define OP_STORE 1
 #define OP_ADD 2
 #define OP_SUB  3
 #define OP_MULT 4

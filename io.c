@@ -97,7 +97,7 @@ void PrintTo_traceinst_file(FILE *traceinst_file)
 			fprintf(traceinst_file, "ST");
 			break;
 		case LOAD_RESORVATION_STATION:
-			fprintf(traceinst_file, "LOAD");
+			fprintf(traceinst_file, "LD");
 			break;
 		}
 		fprintf(traceinst_file, "%d ", issue_list[i].offset);

@@ -114,9 +114,28 @@ void Issue(CfgParameters *cfg_parameters, int *inst_queue_size, int cycle)
 				UpdateRegisters(DIV_RESORVATION_STATION, dst, non_busy_offset);
 				PopInstQueue(inst_queue_size);
 				break;
+			case OP_LOAD:
+				non_busy_offset = SearchFirstNonBusy(load_res_stations, cfg_parameters->mem_nr_load_buffers);
+				if (non_busy_offset == RES_STAT_FULL)
+				{
+					return;
+				}
+				EnterToReservationStation(inst_queue[0], load_res_stations, non_busy_offset, cycle, cfg_parameters);
+				UpdateRegisters(LOAD_RESORVATION_STATION, dst, non_busy_offset);
+				PopInstQueue(inst_queue_size);
+				break;
+			case OP_STORE:
+				non_busy_offset = SearchFirstNonBusy(store_res_stations, cfg_parameters->mem_nr_store_buffers);
+				if (non_busy_offset == RES_STAT_FULL)
+				{
+					return;
+				}
+				EnterToReservationStation(inst_queue[0], store_res_stations, non_busy_offset, cycle, cfg_parameters);
+				UpdateRegisters(STORE_RESORVATION_STATION, dst, non_busy_offset);
+				PopInstQueue(inst_queue_size);
+				break;
 			case OP_HALT:
 				break;
-
 		}
 }
 

@@ -22,13 +22,13 @@ extern Files files_struct;
 void ClearResSlot(Station *res_station, int offset);
 void SetReadyForExec(Station *res_station, int res_size, int cycle);
 int GetNumberOfWorkingExecUnits(Station *res_station, int res_size);
-void EnterToExec(Station *res_station, int res_size, int nr_of_exec_units, int nr_of_working_exec_units, int cycle, int cycles_in_exec);
+bool EnterToExec(Station *res_station, int res_size, int nr_of_exec_units, int nr_of_working_exec_units, int cycle, int cycles_in_exec);
 void RemoveLabel(Station *res_station, int type, int offset, int res_size, float dst_result);
 float DoArithmeticCalc(Station *inst);
 void PutInReservationStation(Station *required_res_station, int inst_queue_size);
 int getReservationType(Station *res_station);
 void DealWithCDB(CfgParameters *cfg_parameters, int cycle);
-void CDB(CfgParameters *cfg_parameters, Station *res_station, int size, int cycle);
+bool CDB(CfgParameters *cfg_parameters, Station *res_station, int size, int cycle);
 int FindLastExecCycle(Station *res_station, int size);
 int getMax(int num[], int size);
 int getNumOfBusy(Station *res_station, int size);
@@ -154,6 +154,7 @@ void Exec(CfgParameters *cfg_parameters, int cycle)
 {
 	int current_add_sub_in_exec = 0, working_units = 0, mem_working_units = 0;
 	bool is_add_sub_exec_busy = false, is_mul_exec_busy = false, is_divide_res_stations_busy = false;
+	bool is_load_just_entered = false;
 
 	// Add-SUB
 	working_units = GetNumberOfWorkingExecUnits(add_sub_res_stations, cfg_parameters->add_nr_reservation);
@@ -172,16 +173,17 @@ void Exec(CfgParameters *cfg_parameters, int cycle)
 
 	// LOAD
 	working_units = GetNumberOfWorkingExecUnits(load_res_stations, cfg_parameters->mem_nr_load_buffers);
-	mem_working_units = working_units + GetNumberOfWorkingExecUnits(store_res_stations, cfg_parameters->mem_nr_store_buffers);
 	SetReadyForExec(load_res_stations, cfg_parameters->mem_nr_load_buffers, cycle);
-	EnterToExec(load_res_stations, cfg_parameters->mem_nr_load_buffers, LOAD_NR_UNITS, mem_working_units, cycle, cfg_parameters->mem_delay);
+	is_load_just_entered = EnterToExec(load_res_stations, cfg_parameters->mem_nr_load_buffers, LOAD_NR_UNITS, working_units, cycle, cfg_parameters->mem_delay);
 
 	// STORE
-	working_units = GetNumberOfWorkingExecUnits(store_res_stations, cfg_parameters->mem_nr_store_buffers);
-	mem_working_units = working_units + GetNumberOfWorkingExecUnits(load_res_stations, cfg_parameters->mem_nr_load_buffers);
-	SetReadyForExec(store_res_stations, cfg_parameters->mem_nr_store_buffers, cycle);
-	EnterToExec(store_res_stations, cfg_parameters->mem_nr_store_buffers, STORE_NR_UNITS, mem_working_units, cycle, cfg_parameters->mem_delay);
-
+	if (is_load_just_entered == false)
+	{
+		working_units = GetNumberOfWorkingExecUnits(store_res_stations, cfg_parameters->mem_nr_store_buffers);
+		//mem_working_units = working_units + GetNumberOfWorkingExecUnits(load_res_stations, cfg_parameters->mem_nr_load_buffers);
+		SetReadyForExec(store_res_stations, cfg_parameters->mem_nr_store_buffers, cycle);
+		EnterToExec(store_res_stations, cfg_parameters->mem_nr_store_buffers, STORE_NR_UNITS, 0, cycle, cfg_parameters->mem_delay);
+	}
 	// CDBs
 
 	DealWithCDB(cfg_parameters, cycle);
@@ -189,13 +191,18 @@ void Exec(CfgParameters *cfg_parameters, int cycle)
 
 void DealWithCDB(CfgParameters *cfg_parameters, int cycle)
 {
+	bool is_load_in_CDB = false;
 	CDB(cfg_parameters, add_sub_res_stations, cfg_parameters->add_nr_reservation, cycle);
 	CDB(cfg_parameters, mul_res_stations, cfg_parameters->mul_nr_reservation, cycle);
 	CDB(cfg_parameters, divide_res_stations, cfg_parameters->div_nr_reservation, cycle);
-	CDB(cfg_parameters, load_res_stations, cfg_parameters->mem_nr_load_buffers, cycle);
-	CDB(cfg_parameters, store_res_stations, cfg_parameters->mem_nr_store_buffers, cycle);
+	is_load_in_CDB = CDB(cfg_parameters, load_res_stations, cfg_parameters->mem_nr_load_buffers, cycle);
+	if (is_load_in_CDB == false) {
+		CDB(cfg_parameters, store_res_stations, cfg_parameters->mem_nr_store_buffers, cycle);
+	}
 }
 
+// clears resorvation station slot to its defaults (0, NULL and false).
+// this is done once the slot is needed to be removed from a resorvation station.
 void ClearResSlot(Station *res_station, int offset)
 {
 	res_station[offset].addr = 0;
@@ -250,7 +257,7 @@ int GetNumberOfWorkingExecUnits(Station *res_station, int res_size)
 	return counter;
 }
 
-void EnterToExec(Station *res_station, int res_size, int nr_of_exec_units, int nr_of_working_exec_units, int cycle, int cycles_in_exec)
+bool EnterToExec(Station *res_station, int res_size, int nr_of_exec_units, int nr_of_working_exec_units, int cycle, int cycles_in_exec)
 {
 	int i, nr_of_empty_exec_units = nr_of_exec_units - nr_of_working_exec_units;
 	for (i = 0; i < res_size; i++)
@@ -267,11 +274,13 @@ void EnterToExec(Station *res_station, int res_size, int nr_of_exec_units, int n
 			issue_list[res_station[i].PC].cycle_execute_end = res_station[i].cycle_to_finish_exec;
 
 			nr_of_empty_exec_units--;
+			return true;
 		}
 	}
+	return false;
 }
 
-void CDB(CfgParameters *cfg_parameters, Station *res_station, int size, int cycle)
+bool CDB(CfgParameters *cfg_parameters, Station *res_station, int size, int cycle)
 {
 	int i = 0;
 	float dst_result = 0.0;
@@ -294,9 +303,10 @@ void CDB(CfgParameters *cfg_parameters, Station *res_station, int size, int cycl
 			PrintTo_tracecdb_file(files_struct.tracedb, res_station[i], i, cycle, dst_result);
 
 			ClearResSlot(res_station, i);
-			break;
+			return true;
 		}
 	}
+	return false;
 }
 
 float DoArithmeticCalc(Station *inst)

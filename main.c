@@ -63,9 +63,19 @@ int main(int argc, char *argv[]) {
 	PrintTo_traceinst_file(files_struct.traceinst);
 	PrintTo_regout_file(files_struct.regout);
 	PrintTo_memout_file(files_struct.memout);
+
+	free(add_sub_res_stations);
+	free(mul_res_stations);
+	free(divide_res_stations);
+	free(load_res_stations);
+	free(store_res_stations);
+	free(issue_list);
+
+	fclose(files_struct.cfg);
 	fclose(files_struct.traceinst);
 	fclose(files_struct.regout);
 	fclose(files_struct.memout);
 	fclose(files_struct.tracedb);
+
 	return SUCCESS;
 }

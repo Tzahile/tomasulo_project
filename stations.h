@@ -29,6 +29,7 @@ typedef struct _Station {
 	int original_inst;
 	int issue_num;
 	int PC;
+	int imm;
 }Station;
 
 typedef struct _CDB_status {

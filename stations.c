@@ -32,6 +32,7 @@ bool CDB(CfgParameters *cfg_parameters, Station *res_station, int size, int cycl
 int FindLastExecCycle(Station *res_station, int size);
 int getMax(int num[], int size);
 int getNumOfBusy(Station *res_station, int size);
+int DoMemCalc(Station *inst);
 
 void PrepareReservationStations(CfgParameters *cfg_parameters) {
 	add_sub_res_stations = (Station *)calloc(cfg_parameters->add_nr_reservation, sizeof(Station));
@@ -127,6 +128,7 @@ void EnterToReservationStation(InstQueue inst, Station *res_station, int size, i
 	}
 	res_station[size].original_inst = inst.original_inst;
 	res_station[size].is_busy = true;
+	res_station[size].imm = inst.imm;
 
 	EnterToIssueList(res_station, size, cycle);
 }
@@ -227,6 +229,7 @@ void ClearResSlot(Station *res_station, int offset)
 	res_station[offset].v_k = 0;
 	res_station[offset].original_inst = 0;
 	res_station[offset].PC = 0;
+	res_station[offset].imm = 0;
 }
 
 void SetReadyForExec(Station *res_station, int res_size, int cycle)
@@ -284,6 +287,7 @@ bool CDB(CfgParameters *cfg_parameters, Station *res_station, int size, int cycl
 {
 	int i = 0;
 	float dst_result = 0.0;
+	int mem_read = 0;
 
 	for (i = 0; i < size; i++)
 	{
@@ -291,7 +295,18 @@ bool CDB(CfgParameters *cfg_parameters, Station *res_station, int size, int cycl
 		{
 			res_station[i].is_in_exec = false;
 			res_station[i].is_ready_for_exec = false;
-			dst_result = DoArithmeticCalc(&res_station[i]);
+			if (res_station[i].is_load == true || res_station[i].is_store == true)
+			{
+				dst_result = (float)DoMemCalc(&res_station[i]);
+			}
+			else
+			{
+				dst_result = DoArithmeticCalc(&res_station[i]);
+			}
+			if (res_station[i].is_store == true)
+			{
+				mem[(int)dst_result] = res_station[i].imm;
+			}
 			RemoveLabel(add_sub_res_stations, getReservationType(&res_station[i]), i, cfg_parameters->add_nr_reservation, dst_result);
 			RemoveLabel(mul_res_stations, getReservationType(&res_station[i]), i, cfg_parameters->mul_nr_reservation, dst_result);
 			RemoveLabel(divide_res_stations, getReservationType(&res_station[i]), i, cfg_parameters->div_nr_reservation, dst_result);
@@ -327,6 +342,15 @@ float DoArithmeticCalc(Station *inst)
 	return inst->v_j / inst->v_k;
 }
 
+int DoMemCalc(Station *inst)
+{
+	if (inst->is_load == true)
+	{
+		return mem[inst->imm];
+	}
+	return (int)registers[(int)inst->v_k].V;
+}
+
 void RemoveLabel(Station *res_station, int type, int offset, int res_size, float dst_result)
 {
 	int i;
@@ -345,6 +369,8 @@ void RemoveLabel(Station *res_station, int type, int offset, int res_size, float
 			res_station[i].v_k = dst_result;
 		}
 	}
+	//if (type == STORE_RESORVATION_STATION)
+		//mem[(int)dst_result] = res_station
 	for (i = 0; i < NUM_OF_REGISTERS; i++)
 	{
 		if (registers[i].Q == type && registers[i].station_offset == offset)
@@ -366,7 +392,15 @@ int getReservationType(Station *res_station)
 	{
 		return MULT_RESORVATION_STATION;
 	}
-	return DIV_RESORVATION_STATION;
+	else if (res_station->is_div == true)
+	{
+		return DIV_RESORVATION_STATION;
+	}
+	else if (res_station->is_load == true)
+	{
+		return LOAD_RESORVATION_STATION;
+	}
+	return STORE_RESORVATION_STATION;
 }
 
 int LastCDBCycle(CfgParameters *cfg_parameters)

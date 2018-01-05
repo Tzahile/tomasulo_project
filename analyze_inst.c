@@ -131,7 +131,7 @@ void Issue(CfgParameters *cfg_parameters, int *inst_queue_size, int cycle)
 					return;
 				}
 				EnterToReservationStation(inst_queue[0], store_res_stations, non_busy_offset, cycle, cfg_parameters);
-				UpdateRegisters(STORE_RESORVATION_STATION, dst, non_busy_offset);
+				//UpdateRegisters(STORE_RESORVATION_STATION, dst, non_busy_offset);
 				PopInstQueue(inst_queue_size);
 				break;
 			case OP_HALT:

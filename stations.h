@@ -1,6 +1,9 @@
 #ifndef STATIONS_H
 #define STATIONS_H
 
+#include <stdbool.h>
+
+#include "io.h"
 #include "analyze_inst.h"
 
 typedef struct _Station {
@@ -24,6 +27,9 @@ typedef struct _Station {
 	bool is_ready_for_exec;
 	bool is_in_exec;
 	int cycle_to_finish_exec;
+	int original_inst;
+	int issue_num;
+	int PC;
 }Station;
 
 typedef struct _CDB_status {
@@ -33,11 +39,24 @@ typedef struct _CDB_status {
 	bool is_MEM_CDB_used;
 } CDB_status;
 
+typedef struct _IssueList {
+	int original_inst;
+	int PC;
+	int tag;
+	int offset;
+	int cycle_issued;
+	int cycle_execute_start;
+	int cycle_execute_end;
+	int cycle_write_cdb;
+	bool is_busy;
+} IssueList;
+
 void PrepareReservationStations(CfgParameters *cfg_parameters);
-void EnterToReservationStation(InstQueue inst, Station *res_station, int *size, int cycle, CfgParameters *cfg_parameters);
-//void Exec(CfgParameters *cfg_parameters, int cycle, int add_sub_res_stations_size, int mul_res_stations_size,
-//	int divide_res_stations_size, int load_res_stations_size, int store_res_stations_size);
-void Exec(CfgParameters *cfg_parameters, int cycle, int *add_sub_res_stations_size, int *mul_res_stations_size,
-	int *divide_res_stations_size, int *load_res_stations_size, int *store_res_stations_size);
+void EnterToReservationStation(InstQueue inst, Station *res_station, int size, int cycle, CfgParameters *cfg_parameters);
+void Exec(CfgParameters *cfg_parameters, int cycle);
+int LastCDBCycle(CfgParameters *cfg_parameters);
+bool isBusy(CfgParameters *cfg_parameters);
+void EnterToIssueList(Station *res_station, int offset, int cycle);
+void PrintTo_tracecdb_file(FILE *tracecdb_file, Station res_station, int offset, int cycle, float data_on_cdb);
 
 #endif

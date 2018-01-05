@@ -4,6 +4,9 @@
 #include <stdio.h>
 #include <stdbool.h>
 
+//#include "stations.h"
+
+
 typedef struct _Files{
 	FILE *cfg;
 	FILE *memin;
@@ -23,6 +26,11 @@ typedef struct _CfgParameters {
 
 bool OpenFiles(Files *files_struct, char *argv[]);
 void ReadMem(Files *memin_file);
+int FindLastInstPC();
 int FindLastNotZeroAddress();
 void SetCfgParameters(FILE *cfg_file, CfgParameters *cfg_parameters);
+void PrintTo_traceinst_file(FILE *traceinst_file);
+void PrintTo_regout_file(FILE *traceinst_file);
+void PrintTo_memout_file(FILE *traceinst_file);
+
 #endif

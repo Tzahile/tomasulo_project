@@ -25,7 +25,5 @@ typedef struct _InstQueue {
 void DecodeInst(int inst, int *op, int *dst, int *src0, int *src1, int *imm);
 void InitRegistersStruct();
 int Fetch(int last, int *PC, int *inst_queue_size);
-void Issue(CfgParameters *cfg_parameters, int *inst_queue_size, int *add_sub_res_stations_size,
-	int *mul_res_stations_size, int *divide_res_stations_size, int *load_res_stations_size,
-	int *store_res_stations_size, int cycle);
+void Issue(CfgParameters *cfg_parameters, int *inst_queue_size, int cycle);
 #endif

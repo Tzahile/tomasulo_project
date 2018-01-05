@@ -10,10 +10,12 @@ extern char op_name[][NUM_OF_OP_CODES];
 extern char reg_name[][NUM_OF_REGISTERS];
 extern double reg_values[NUM_OF_REGISTERS];
 extern Station *add_sub_res_stations, *mul_res_stations, *divide_res_stations, *load_res_stations, *store_res_stations;
-extern int mem[MEM_SIZE];
+extern int mem[MEM_SIZE], last;
 extern InstQueue inst_queue[INST_QUEUE_SIZE];
 extern Registers registers[NUM_OF_REGISTERS];
 extern CDB_status CDB_status_var;
+extern IssueList *issue_list;
+extern Files files_struct;
 
 void ClearResSlot(Station *res_station, int offset);
 void SetReadyForExec(Station *res_station, int size, int cycle);
@@ -23,10 +25,11 @@ void RemoveLabel(Station *res_station, int type, int offset, int res_size, float
 float DoArithmeticCalc(Station *inst);
 void PutInReservationStation(Station *required_res_station, int inst_queue_size);
 int getReservationType(Station *res_station);
-void CDB(Station *res_station, int *size, int cycle, int add_sub_res_stations_size, int mul_res_stations_size,
-	int divide_res_stations_size, int load_res_stations_size, int store_res_stations_size);
-void CheckIfInstFinishedExec(CfgParameters *cfg_parameters, int cycle, int add_sub_res_stations_size, int mul_res_stations_size,
-	int divide_res_stations_size, int load_res_stations_size, int store_res_stations_size);
+void DealWithCDB(CfgParameters *cfg_parameters, int cycle);
+void CDB(CfgParameters *cfg_parameters, Station *res_station, int size, int cycle);
+int FindLastExecCycle(Station *res_station, int size);
+int getMax(int num[], int size);
+int getNumOfBusy(Station *res_station, int size);
 
 void PrepareReservationStations(CfgParameters *cfg_parameters) {
 	add_sub_res_stations = (Station *)calloc(cfg_parameters->add_nr_reservation, sizeof(Station));
@@ -56,129 +59,137 @@ void PutInReservationStation(Station *required_res_station, int inst_queue_size)
 	required_res_station->is_busy = true;
 }
 
-void EnterToReservationStation(InstQueue inst, Station *res_station, int *size, int cycle, CfgParameters *cfg_parameters)
+void EnterToReservationStation(InstQueue inst, Station *res_station, int size, int cycle, CfgParameters *cfg_parameters)
 {
 	switch (registers[inst.src0].Q) {
 	case ADD_SUB_RESORVATION_STATION:
-		res_station[*size].q_j = ADD_SUB_RESORVATION_STATION;
-		res_station[*size].q_j_station_offset = registers[inst.src0].station_offset;
+		res_station[size].q_j = ADD_SUB_RESORVATION_STATION;
+		res_station[size].q_j_station_offset = registers[inst.src0].station_offset;
 		break;
 	case MULT_RESORVATION_STATION:
-		res_station[*size].q_j = MULT_RESORVATION_STATION;
-		res_station[*size].q_j_station_offset = registers[inst.src0].station_offset;
+		res_station[size].q_j = MULT_RESORVATION_STATION;
+		res_station[size].q_j_station_offset = registers[inst.src0].station_offset;
 		break;
 	case DIV_RESORVATION_STATION:
-		res_station[*size].q_j = DIV_RESORVATION_STATION;
-		res_station[*size].q_j_station_offset = registers[inst.src0].station_offset;
+		res_station[size].q_j = DIV_RESORVATION_STATION;
+		res_station[size].q_j_station_offset = registers[inst.src0].station_offset;
 		break;
 	case 0:
-		res_station[*size].v_j = registers[inst.src0].V;
-		res_station[*size].q_j = 0;
+		res_station[size].v_j = registers[inst.src0].V;
+		res_station[size].q_j = 0;
 		break;
 	}
 	switch (registers[inst.src1].Q) {
 	case ADD_SUB_RESORVATION_STATION:
-		res_station[*size].q_k = ADD_SUB_RESORVATION_STATION;
-		res_station[*size].q_k_station_offset = registers[inst.src1].station_offset;
+		res_station[size].q_k = ADD_SUB_RESORVATION_STATION;
+		res_station[size].q_k_station_offset = registers[inst.src1].station_offset;
 		break;
 	case MULT_RESORVATION_STATION:
-		res_station[*size].q_k = MULT_RESORVATION_STATION;
-		res_station[*size].q_k_station_offset = registers[inst.src1].station_offset;
+		res_station[size].q_k = MULT_RESORVATION_STATION;
+		res_station[size].q_k_station_offset = registers[inst.src1].station_offset;
 		break;
 	case DIV_RESORVATION_STATION:
-		res_station[*size].q_k = DIV_RESORVATION_STATION;
-		res_station[*size].q_k_station_offset = registers[inst.src1].station_offset;
+		res_station[size].q_k = DIV_RESORVATION_STATION;
+		res_station[size].q_k_station_offset = registers[inst.src1].station_offset;
 		break;
 	case 0:
-		res_station[*size].v_k = registers[inst.src1].V;
-		res_station[*size].q_k = 0;
+		res_station[size].v_k = registers[inst.src1].V;
+		res_station[size].q_k = 0;
 		break;
 	}
-	res_station[*size].cycle_entered = cycle;
+	res_station[size].cycle_entered = cycle;
 
 	switch (inst.op)
 	{
 	case OP_ADD:
-		res_station[*size].is_add = true;
+		res_station[size].is_add = true;
 		break;
 	case OP_SUB:
-		res_station[*size].is_sub = true;
+		res_station[size].is_sub = true;
 		break;
 	case OP_MULT :
-		res_station[*size].is_mult = true;
+		res_station[size].is_mult = true;
 		break;
 	case OP_DIV:
-		res_station[*size].is_div = true;
+		res_station[size].is_div = true;
 		break;
 	case OP_ST:
-		res_station[*size].is_st = true;
+		res_station[size].is_st = true;
 		break;
 	case OP_LD:
-		res_station[*size].is_ld = true;
+		res_station[size].is_ld = true;
 		break;
 	case OP_HALT:
-		res_station[*size].is_halt = true;
+		res_station[size].is_halt = true;
 		break;
 	}
-	res_station[*size].is_busy = true;
+	res_station[size].original_inst = inst.original_inst;
+	res_station[size].is_busy = true;
+
+	EnterToIssueList(res_station, size, cycle);
 }
-void Exec(CfgParameters *cfg_parameters, int cycle, int *add_sub_res_stations_size, int *mul_res_stations_size,
-	 int *divide_res_stations_size, int *load_res_stations_size, int *store_res_stations_size)
+
+void EnterToIssueList(Station *res_station, int offset, int cycle)
+{
+	int i;
+	for (i = 0; i < last; i++)
+	{
+		if (issue_list[i].is_busy == false)
+		{
+			issue_list[i].is_busy = true;
+			issue_list[i].original_inst = res_station->original_inst;
+			issue_list[i].cycle_issued = cycle;
+			issue_list[i].PC = i;
+			res_station[offset].PC = i;
+			issue_list[i].tag = getReservationType(&res_station[offset]);
+			issue_list[i].offset = offset;
+			break;
+		}
+	}
+}
+
+void Exec(CfgParameters *cfg_parameters, int cycle)
 {
 	int current_add_sub_in_exec = 0, working_units = 0;
 	bool is_add_sub_exec_busy = false, is_mul_exec_busy = false, is_divide_res_stations_busy = false;
 
 	// Add-SUB
-	working_units = GetNumberOfWorkingExecUnits(add_sub_res_stations, *add_sub_res_stations_size);
-	SetReadyForExec(add_sub_res_stations, *add_sub_res_stations_size, cycle);
-	EnterToExec(add_sub_res_stations, *add_sub_res_stations_size, cfg_parameters->add_nr_units, working_units, cycle, cfg_parameters->add_delay);
+	working_units = GetNumberOfWorkingExecUnits(add_sub_res_stations, cfg_parameters->add_nr_reservation);
+	SetReadyForExec(add_sub_res_stations, cfg_parameters->add_nr_reservation, cycle);
+	EnterToExec(add_sub_res_stations, cfg_parameters->add_nr_reservation, cfg_parameters->add_nr_units, working_units, cycle, cfg_parameters->add_delay);
 
 	// MUL
-	working_units = GetNumberOfWorkingExecUnits(mul_res_stations, *mul_res_stations_size);
-	SetReadyForExec(mul_res_stations, *mul_res_stations_size, cycle);
-	EnterToExec(mul_res_stations, *mul_res_stations_size, cfg_parameters->mul_nr_units, working_units, cycle, cfg_parameters->mul_delay);
+	working_units = GetNumberOfWorkingExecUnits(mul_res_stations, cfg_parameters->mul_nr_reservation);
+	SetReadyForExec(mul_res_stations, cfg_parameters->mul_nr_reservation, cycle);
+	EnterToExec(mul_res_stations, cfg_parameters->mul_nr_reservation, cfg_parameters->mul_nr_units, working_units, cycle, cfg_parameters->mul_delay);
 
 	// DIV
-	working_units = GetNumberOfWorkingExecUnits(divide_res_stations, *divide_res_stations_size);
-	SetReadyForExec(divide_res_stations, *divide_res_stations_size, cycle);
-	EnterToExec(divide_res_stations, *divide_res_stations_size, cfg_parameters->div_nr_units, working_units, cycle, cfg_parameters->div_delay);
+	working_units = GetNumberOfWorkingExecUnits(divide_res_stations, cfg_parameters->div_nr_reservation);
+	SetReadyForExec(divide_res_stations, cfg_parameters->div_nr_reservation, cycle);
+	EnterToExec(divide_res_stations, cfg_parameters->div_nr_reservation, cfg_parameters->div_nr_units, working_units, cycle, cfg_parameters->div_delay);
 
 	// LD
-	working_units = GetNumberOfWorkingExecUnits(load_res_stations, *load_res_stations_size);
-	SetReadyForExec(load_res_stations, *load_res_stations_size, cycle);
-	EnterToExec(load_res_stations, *load_res_stations_size, 1, working_units, cycle, cfg_parameters->mem_delay);
+	working_units = GetNumberOfWorkingExecUnits(load_res_stations, 1);
+	SetReadyForExec(load_res_stations, cfg_parameters->mem_nr_load_buffers, cycle);
+	EnterToExec(load_res_stations, cfg_parameters->mem_nr_load_buffers, 1, working_units, cycle, cfg_parameters->mem_delay);
 
 	// ST
-	working_units = GetNumberOfWorkingExecUnits(store_res_stations, *store_res_stations_size);
-	SetReadyForExec(store_res_stations, *store_res_stations_size, cycle);
-	EnterToExec(store_res_stations, *store_res_stations_size, 1, working_units, cycle, cfg_parameters->add_delay);
+	working_units = GetNumberOfWorkingExecUnits(store_res_stations, 1);
+	SetReadyForExec(store_res_stations, cfg_parameters->mem_nr_store_buffers, cycle);
+	EnterToExec(store_res_stations, cfg_parameters->mem_nr_store_buffers, 1, working_units, cycle, cfg_parameters->mem_delay);
 
 	// CDBs
-	CDB(add_sub_res_stations, add_sub_res_stations_size, cycle, *add_sub_res_stations_size, *mul_res_stations_size,
-		*divide_res_stations_size, *load_res_stations_size, *store_res_stations_size);
-	CDB(mul_res_stations, mul_res_stations_size, cycle, *mul_res_stations_size, *mul_res_stations_size,
-		*divide_res_stations_size, *load_res_stations_size, *store_res_stations_size);
-	CDB(divide_res_stations, divide_res_stations_size, cycle, *mul_res_stations_size, *mul_res_stations_size,
-		*divide_res_stations_size, *load_res_stations_size, *store_res_stations_size);
-	CDB(load_res_stations, load_res_stations_size, cycle, *mul_res_stations_size, *mul_res_stations_size,
-		*divide_res_stations_size, *load_res_stations_size, *store_res_stations_size);
-	CDB(store_res_stations, store_res_stations_size, cycle, *mul_res_stations_size, *mul_res_stations_size,
-		*divide_res_stations_size, *load_res_stations_size, *store_res_stations_size);
+
+	DealWithCDB(cfg_parameters, cycle);
 }
 
-void CheckIfInstFinishedExec(CfgParameters *cfg_parameters, int cycle, int add_sub_res_stations_size, int mul_res_stations_size,
-	int divide_res_stations_size, int load_res_stations_size, int store_res_stations_size)
+void DealWithCDB(CfgParameters *cfg_parameters, int cycle)
 {
-	int i;
-	for (i = 0; i < add_sub_res_stations_size; i++)
-	{
-		if (cycle == add_sub_res_stations[i].cycle_to_finish_exec)
-		{
-
-			ClearResSlot(add_sub_res_stations, i);
-			break;
-		}
-	}
+	CDB(cfg_parameters, add_sub_res_stations, cfg_parameters->add_nr_reservation, cycle);
+	CDB(cfg_parameters, mul_res_stations, cfg_parameters->mul_nr_reservation, cycle);
+	CDB(cfg_parameters, divide_res_stations, cfg_parameters->div_nr_reservation, cycle);
+	CDB(cfg_parameters, load_res_stations, cfg_parameters->mem_nr_load_buffers, cycle);
+	CDB(cfg_parameters, divide_res_stations, cfg_parameters->mem_nr_store_buffers, cycle);
 }
 
 void ClearResSlot(Station *res_station, int offset)
@@ -203,6 +214,8 @@ void ClearResSlot(Station *res_station, int offset)
 	res_station[offset].q_k_station_offset = 0;
 	res_station[offset].v_j = 0;
 	res_station[offset].v_k = 0;
+	res_station[offset].original_inst = 0;
+	res_station[offset].PC = 0;
 }
 
 void SetReadyForExec(Station *res_station, int size, int cycle)
@@ -210,7 +223,7 @@ void SetReadyForExec(Station *res_station, int size, int cycle)
 	int i;
 	for (i = 0; i < size; i++)
 	{
-		if ((cycle > res_station[i].cycle_entered) && res_station[i].is_in_exec == false && res_station[i].q_j == 0 && res_station[i].q_k == 0)
+		if (res_station[i].is_busy == true && (cycle > res_station[i].cycle_entered) && res_station[i].is_in_exec == false && res_station[i].q_j == 0 && res_station[i].q_k == 0)
 		{
 			res_station[i].is_ready_for_exec = true;
 		}
@@ -244,33 +257,39 @@ void EnterToExec(Station *res_station, int res_size, int nr_of_exec_units, int n
 				break;
 			}
 			res_station[i].is_in_exec = true;
-			res_station[i].cycle_to_finish_exec = cycle + cycles_in_exec;
+			res_station[i].cycle_to_finish_exec = cycle + cycles_in_exec - 1;
+
+			issue_list[res_station[i].PC].cycle_execute_start = cycle;
+			issue_list[res_station[i].PC].cycle_execute_end = res_station[i].cycle_to_finish_exec;
+
 			nr_of_empty_exec_units--;
 		}
 	}
 }
 
-void CDB(Station *res_station, int *size, int cycle, int add_sub_res_stations_size, int mul_res_stations_size,
-	int divide_res_stations_size, int load_res_stations_size, int store_res_stations_size)
+void CDB(CfgParameters *cfg_parameters, Station *res_station, int size, int cycle)
 {
 	int i = 0;
 	float dst_result = 0.0;
-	//if (CDB_status_var.is_ADD_SUB_CDB_used == false) {
-	for (i = 0; i < *size; i++)
+
+	for (i = 0; i < size; i++)
 	{
 		if (cycle > res_station[i].cycle_to_finish_exec && res_station[i].is_in_exec == true)
 		{
-			//CDB_status_var.is_ADD_SUB_CDB_used = true;
 			res_station[i].is_in_exec = false;
 			res_station[i].is_ready_for_exec = false;
 			dst_result = DoArithmeticCalc(&res_station[i]);
-			RemoveLabel(add_sub_res_stations, getReservationType(&res_station[i]), i, add_sub_res_stations_size, dst_result);
-			RemoveLabel(mul_res_stations, getReservationType(&res_station[i]), i, mul_res_stations_size, dst_result);
-			RemoveLabel(divide_res_stations, getReservationType(&res_station[i]), i, divide_res_stations_size, dst_result);
-			RemoveLabel(load_res_stations, getReservationType(&res_station[i]), i, load_res_stations_size, dst_result);
-			RemoveLabel(store_res_stations, getReservationType(&res_station[i]), i, store_res_stations_size, dst_result);
+			RemoveLabel(add_sub_res_stations, getReservationType(&res_station[i]), i, cfg_parameters->add_nr_reservation, dst_result);
+			RemoveLabel(mul_res_stations, getReservationType(&res_station[i]), i, cfg_parameters->mul_nr_reservation, dst_result);
+			RemoveLabel(divide_res_stations, getReservationType(&res_station[i]), i, cfg_parameters->div_nr_reservation, dst_result);
+			RemoveLabel(load_res_stations, getReservationType(&res_station[i]), i, cfg_parameters->mem_nr_load_buffers, dst_result);
+			RemoveLabel(store_res_stations, getReservationType(&res_station[i]), i, cfg_parameters->mem_nr_store_buffers, dst_result);
+
+			issue_list[res_station[i].PC].cycle_write_cdb = cycle;
+
+			PrintTo_tracecdb_file(files_struct.tracedb, res_station[i], i, cycle, dst_result);
+
 			ClearResSlot(res_station, i);
-			(*size)--;
 			break;
 		}
 	}
@@ -334,4 +353,108 @@ int getReservationType(Station *res_station)
 		return MULT_RESORVATION_STATION;
 	}
 	return DIV_RESORVATION_STATION;
+}
+
+int LastCDBCycle(CfgParameters *cfg_parameters)
+{
+	int max_values[NUMBER_OF_RES_STATIONS];
+	max_values[0] = FindLastExecCycle(add_sub_res_stations, cfg_parameters->add_nr_reservation);
+	max_values[1] = FindLastExecCycle(mul_res_stations, cfg_parameters->mul_nr_reservation);
+	max_values[2] = FindLastExecCycle(divide_res_stations, cfg_parameters->div_nr_reservation);
+	max_values[3] = FindLastExecCycle(load_res_stations, cfg_parameters->mem_nr_load_buffers);
+	max_values[4] = FindLastExecCycle(store_res_stations, cfg_parameters->mem_nr_store_buffers);
+	return getMax(max_values, NUMBER_OF_RES_STATIONS) + 1;
+}
+int FindLastExecCycle(Station *res_station, int size) {
+	int i = 0, max_cycle = 0;
+	for (i = 0; i < size; i++)
+	{
+		if (res_station[i].cycle_to_finish_exec > max_cycle)
+		{
+			max_cycle = res_station[i].cycle_to_finish_exec;
+		}
+	}
+	return max_cycle;
+}
+int getMax(int num[], int size) {
+	int result = 0, i; 
+	for (i = 0; i < size; i++)
+	{
+		if (num[i] > result)
+		{
+			result = num[i];
+		}
+	}
+	return result;
+}
+
+bool isBusy(CfgParameters *cfg_parameters)
+{
+	int total_busy = 0;
+	total_busy =  getNumOfBusy(add_sub_res_stations, cfg_parameters->add_nr_reservation);
+	total_busy += getNumOfBusy(mul_res_stations, cfg_parameters->mul_nr_reservation);
+	total_busy += getNumOfBusy(divide_res_stations, cfg_parameters->div_nr_reservation);
+	total_busy += getNumOfBusy(load_res_stations, cfg_parameters->mem_nr_load_buffers);
+	total_busy += getNumOfBusy(store_res_stations, cfg_parameters->mem_nr_store_buffers);
+	if (total_busy > 0)
+	{
+		return true;
+	}
+	return false;
+}
+
+int getNumOfBusy(Station *res_station, int size)
+{
+	int i, num_of_busy = 0;
+	for (i = 0; i < size; i++)
+	{
+		if (res_station[i].is_busy == true)
+		{
+			num_of_busy++;
+		}
+	}
+	return num_of_busy;
+}
+
+void PrintTo_tracecdb_file(FILE *tracecdb_file, Station res_station, int offset, int cycle, float data_on_cdb)
+{
+	fprintf(tracecdb_file, "%d ", cycle);
+	fprintf(tracecdb_file, "%d ", res_station.PC);
+	if (res_station.is_add || res_station.is_sub)
+	{
+		fprintf(tracecdb_file, "ADD ");
+	}
+	else if (res_station.is_mult)
+	{
+		fprintf(tracecdb_file, "MUL ");
+	}
+	else if (res_station.is_div)
+	{
+		fprintf(tracecdb_file, "DIV ");
+	}
+	else if (res_station.is_ld || res_station.is_st)
+	{
+		fprintf(tracecdb_file, "MEM ");
+	}
+
+	fprintf(tracecdb_file, "%08f ", data_on_cdb);
+
+	if (res_station.is_add || res_station.is_sub)
+	{
+		fprintf(tracecdb_file, "ADD");
+	}
+	else if (res_station.is_mult)
+	{
+		fprintf(tracecdb_file, "MUL");
+	}
+	else if (res_station.is_div)
+	{
+		fprintf(tracecdb_file, "DIV");
+	}
+	else if (res_station.is_ld || res_station.is_st)
+	{
+		fprintf(tracecdb_file, "MEM");
+	}
+	fprintf(tracecdb_file, "%d", offset);
+	fprintf(tracecdb_file, "\n");
 }

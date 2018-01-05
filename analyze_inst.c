@@ -12,14 +12,13 @@ extern double reg_values[NUM_OF_REGISTERS];
 extern char reg_name[][NUM_OF_REGISTERS];
 extern int mem[MEM_SIZE];
 extern Station *add_sub_res_stations, *mul_res_stations, *divide_res_stations, *load_res_stations, *store_res_stations;
-//extern int current_inst_queue_size, current_add_sub_res_stations_size, current_mul_res_stations_size,
-//current_divide_res_stations_size, current_load_res_stations_size, current_store_res_stations_size;
 extern InstQueue inst_queue[INST_QUEUE_SIZE];
 extern Registers registers[NUM_OF_REGISTERS];
 
 void EnterToInstQueue(int inst, int op, int dst, int src0, int src1, int imm, int inst_queue_size);
-void UpdateRegisters(int station_name, int dst, int *relevent_size);
-void PopInstQueue();
+void UpdateRegisters(int station_name, int dst, int relevent_size);
+void PopInstQueue(int *inst_queue_size);
+int SearchFirstNonBusy(Station *res_station, int size);
 
 
 int sbs(int x, int msb, int lsb);
@@ -73,11 +72,9 @@ void EnterToInstQueue(int inst, int op, int dst, int src0, int src1, int imm, in
 	inst_queue[inst_queue_size].is_busy = true;
 }
 
-void Issue(CfgParameters *cfg_parameters, int *inst_queue_size, int *add_sub_res_stations_size,
-	int *mul_res_stations_size, int *divide_res_stations_size, int *load_res_stations_size,
-	int *store_res_stations_size, int cycle)
+void Issue(CfgParameters *cfg_parameters, int *inst_queue_size, int cycle)
 {
-	int op, dst;
+	int op, dst, non_busy_offset = 0;
 	if (inst_queue_size == 0)
 	{
 		return;
@@ -88,42 +85,55 @@ void Issue(CfgParameters *cfg_parameters, int *inst_queue_size, int *add_sub_res
 		{
 			case OP_ADD:
 			case OP_SUB:
-				if (*add_sub_res_stations_size == cfg_parameters->add_nr_reservation)
+				non_busy_offset = SearchFirstNonBusy(add_sub_res_stations, cfg_parameters->add_nr_reservation);
+				if (non_busy_offset == RES_STAT_FULL)
 				{ 
 					return;
 				}
-				EnterToReservationStation(inst_queue[0], add_sub_res_stations, add_sub_res_stations_size, cycle, cfg_parameters);
-				UpdateRegisters(ADD_SUB_RESORVATION_STATION, dst, add_sub_res_stations_size);
-				(*add_sub_res_stations_size)++;
+				EnterToReservationStation(inst_queue[0], add_sub_res_stations, non_busy_offset, cycle, cfg_parameters);
+				UpdateRegisters(ADD_SUB_RESORVATION_STATION, dst, non_busy_offset);
 				PopInstQueue(inst_queue_size);
 				break;
 			case OP_MULT:
-				if (*mul_res_stations_size == cfg_parameters->mul_nr_reservation)
+				non_busy_offset = SearchFirstNonBusy(mul_res_stations, cfg_parameters->mul_nr_reservation);
+				if (non_busy_offset == RES_STAT_FULL)
 				{
 					return;
 				}
-				EnterToReservationStation(inst_queue[0], mul_res_stations, mul_res_stations_size, cycle, cfg_parameters);
-				UpdateRegisters(MULT_RESORVATION_STATION, dst, mul_res_stations_size);
-				(*mul_res_stations_size)++;
+				EnterToReservationStation(inst_queue[0], mul_res_stations, non_busy_offset, cycle, cfg_parameters);
+				UpdateRegisters(MULT_RESORVATION_STATION, dst, non_busy_offset);
 				PopInstQueue(inst_queue_size);
 				break;
 			case OP_DIV:
-				if (*divide_res_stations_size == cfg_parameters->div_nr_reservation)
+				non_busy_offset = SearchFirstNonBusy(divide_res_stations, cfg_parameters->div_nr_reservation);
+				if (non_busy_offset == RES_STAT_FULL)
 				{
 					return;
 				}
-				(*divide_res_stations_size)++;
-				UpdateRegisters(DIV_RESORVATION_STATION, dst, divide_res_stations_size);
+				EnterToReservationStation(inst_queue[0], divide_res_stations, non_busy_offset, cycle, cfg_parameters);
+				UpdateRegisters(DIV_RESORVATION_STATION, dst, non_busy_offset);
+				PopInstQueue(inst_queue_size);
 				break;
+			case OP_HALT:
+				break;
+
 		}
-
-
 }
 
-void UpdateRegisters(int station_name, int dst, int *relevent_size)
+int SearchFirstNonBusy(Station *res_station, int size) {
+	int offset = 0;
+	for (offset = 0; offset < size; offset++)
+	{
+		if (res_station[offset].is_busy == false)
+			return offset;
+	}
+	return RES_STAT_FULL;
+}
+
+void UpdateRegisters(int station_name, int dst, int relevent_size)
 {
 	registers[dst].Q = station_name;
-	registers[dst].station_offset = *relevent_size;
+	registers[dst].station_offset = relevent_size;
 }
 
 void PopInstQueue(int *inst_queue_size)

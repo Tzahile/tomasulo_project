@@ -49,8 +49,12 @@ void InitRegistersStruct() {
 }
 
 // return the number of new instruction entered to instruction queue.
-int Fetch(int last, int *PC, int *inst_queue_size) {
+int Fetch(int last, int *PC, int *inst_queue_size, bool *is_halt) {
 	int op, dst, src0, src1, imm, inst, new_insts = 0;
+	if (*is_halt == true)
+	{
+		return 0;
+	}
 	if (*inst_queue_size < INST_QUEUE_SIZE) {
 		inst = mem[*PC];
 		(*PC)++;
@@ -58,6 +62,10 @@ int Fetch(int last, int *PC, int *inst_queue_size) {
 		DecodeInst(inst, &op, &dst, &src0, &src1, &imm);
 		EnterToInstQueue(inst, op, dst, src0, src1, imm, *inst_queue_size);
 		(*inst_queue_size)++;
+		if (op == 6)
+		{
+			*is_halt = true;
+		}
 	}
 	return new_insts;
 }

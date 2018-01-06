@@ -7,6 +7,20 @@
 #include "analyze_inst.h"
 #include "stations.h"
 
+// the main data structures in the program:
+// op_name - names of all the available commands
+// reg_name - names of all the available registers
+// reg_values - the initial values of the registers
+// mem - array containing the memory
+// add_sub_res_stations - the reservation stations of ADD and SUB
+// mul_res_stations - the reservation stations of MUL
+// divide_res_stations - the reservation stations of DIV
+// load_res_stations - the reservation stations of LOAD
+// store_res_stations - the reservation stations of STORE
+// inst_queue - the instruction queue
+// issue_list - an array containing all the instructions sorted by the Issue order
+// files_struct - the struct containing all the input and output files
+//
 char op_name[][NUM_OF_OP_CODES] = { "LOAD", "STORE", "ADD", "SUB", "MULT", "DIV", "HALT" };
 char reg_name[][NUM_OF_REGISTERS] = { "F0", "F1", "F2", "F3", "F4", "F5", "F6", "F7", "F8", "F9", "F10", "F11", "F12",
 									  "F13", "F14", "F15" };
@@ -21,23 +35,22 @@ IssueList *issue_list = { 0 };
 Files files_struct = { NULL };
 
 
-
+// the main function
+//
 int main(int argc, char *argv[]) {
-	//Files files_struct;
 	CfgParameters cfg_parameters;
 	bool is_add_exec_occupied = false, is_mult_exec_occupied = false, is_div_exec_occupied = false;
+	bool is_halt = false;
 	int nr_instrs_read = 0;
 	int err_code = SUCCESS; //last = 0;
 	int cycle = 0;
 	int PC = 0;
-	int inst_queue_size = 0, add_sub_res_stations_size = 0, mul_res_stations_size = 0,
-		divide_res_stations_size = 0, load_res_stations_size = 0, store_res_stations_size = 0;
+	int inst_queue_size = 0;
 	err_code = OpenFiles(&files_struct, argv);
 	if (err_code == ERROR_CODE) {
 		return ERROR_CODE;
 	}
 	SetCfgParameters(files_struct.cfg, &cfg_parameters);
-	fclose(files_struct.cfg);
 	PrepareReservationStations(&cfg_parameters);
 	InitRegistersStruct();
 	ReadMem(&files_struct);
@@ -46,17 +59,17 @@ int main(int argc, char *argv[]) {
 	PC = 0;
 
 	// cycle 0
-	nr_instrs_read = Fetch(last, &PC, &inst_queue_size);
-	nr_instrs_read += Fetch(last, &PC, &inst_queue_size);
-	cycle++;
+	nr_instrs_read = Fetch(last, &PC, &inst_queue_size, &is_halt);
+	nr_instrs_read += Fetch(last, &PC, &inst_queue_size, &is_halt);
 	// end of cycle 0
+	cycle++;
 	while (isBusy(&cfg_parameters) || cycle == 1) {
 		// cycle 1, 2, 3, 4, ...
 		Issue(&cfg_parameters, &inst_queue_size, cycle);
 		Issue(&cfg_parameters, &inst_queue_size, cycle);
 		Exec(&cfg_parameters, cycle);
-		nr_instrs_read += Fetch(last, &PC, &inst_queue_size);
-		nr_instrs_read += Fetch(last, &PC, &inst_queue_size);
+		nr_instrs_read += Fetch(last, &PC, &inst_queue_size, &is_halt);
+		nr_instrs_read += Fetch(last, &PC, &inst_queue_size, &is_halt);
 		// end of cycle 1, 2, 3, 4, ...
 		cycle++;
 	}

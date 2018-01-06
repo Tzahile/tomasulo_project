@@ -205,6 +205,7 @@ void DealWithCDB(CfgParameters *cfg_parameters, int cycle)
 
 // clears resorvation station slot to its defaults (0, NULL and false).
 // this is done once the slot is needed to be removed from a resorvation station.
+//
 void ClearResSlot(Station *res_station, int offset)
 {
 	res_station[offset].addr = 0;
@@ -232,6 +233,13 @@ void ClearResSlot(Station *res_station, int offset)
 	res_station[offset].imm = 0;
 }
 
+// sets the "is_ready_for_exec" bit inside Station struct once the instruction is ready to enter the execution unit
+//
+// arguments:
+// Station *res_station - one of the resorvation stations arrays
+// int res_size - the size of the resorvation stations as in cfg.txt file.
+// int cycle - the current cycle.
+//
 void SetReadyForExec(Station *res_station, int res_size, int cycle)
 {
 	int i;
@@ -369,8 +377,7 @@ void RemoveLabel(Station *res_station, int type, int offset, int res_size, float
 			res_station[i].v_k = dst_result;
 		}
 	}
-	//if (type == STORE_RESORVATION_STATION)
-		//mem[(int)dst_result] = res_station
+
 	for (i = 0; i < NUM_OF_REGISTERS; i++)
 	{
 		if (registers[i].Q == type && registers[i].station_offset == offset)

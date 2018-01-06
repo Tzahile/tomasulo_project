@@ -30,7 +30,7 @@ int FindLastInstPC();
 int FindLastNotZeroAddress();
 void SetCfgParameters(FILE *cfg_file, CfgParameters *cfg_parameters);
 void PrintTo_traceinst_file(FILE *traceinst_file);
-void PrintTo_regout_file(FILE *traceinst_file);
-void PrintTo_memout_file(FILE *traceinst_file);
+void PrintTo_regout_file(FILE *regout_file);
+void PrintTo_memout_file(FILE *memout_file);
 
 #endif

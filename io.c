@@ -12,6 +12,13 @@ extern IssueList *issue_list;
 extern Registers registers[NUM_OF_REGISTERS];
 extern Files files_struct;
 
+// opens all input and output files.
+//
+// arguments:
+// Files *files_struct - struct containing all the files.
+// char *argv[] - array of all files names to be opened.
+//
+// returns 0 (SUCCESS) if finished successfuly. otherwise, returns -1 (ERROR_CODE).
 bool OpenFiles(Files *files_struct, char *argv[]){
 	 files_struct->cfg = fopen(argv[1], "r");
 	 files_struct->memin = fopen(argv[2], "r");
@@ -28,6 +35,11 @@ bool OpenFiles(Files *files_struct, char *argv[]){
 	}
 }
 
+// reads the content of memin.txt and enters it to mem variable.
+//
+// arguments:
+// Files *files - struct containing all the files (we need memin.txt).
+//
 void ReadMem(Files *files) {
 	int i = 0;
 	while (!feof(files->memin)) {
@@ -37,14 +49,18 @@ void ReadMem(Files *files) {
 	}
 }
 
+// finds the PC of HALT command and returns it.
+//
 int FindLastInstPC() {
 	int last = 0;
-	while (last <= (MEM_SIZE) - 1 && mem[last] != 0) {
+	while (last <= (MEM_SIZE) - 1 && mem[last] != 0x06000000) {
 	last++;
 	}
-	return last - 1;
+	return last;
 }
 
+// returns the PC of last non zero memory 
+//
 int FindLastNotZeroAddress()
 {
 	int last = (MEM_SIZE) - 1;
@@ -54,6 +70,12 @@ int FindLastNotZeroAddress()
 	return last;
 }
 
+// reads cfg.txt and sets all the parameters in a CfgParameters struct
+// 
+// arguments:
+// FILE *cfg_file - struct with all the opened files.
+// CfgParameters *cfg_parameters (output) - the struct we put all the read parameters
+//
 void SetCfgParameters(FILE *cfg_file, CfgParameters *cfg_parameters) {
 	char temp1[100];
 	int i = 0;
@@ -72,6 +94,11 @@ void SetCfgParameters(FILE *cfg_file, CfgParameters *cfg_parameters) {
 
 }
 
+// printing to traceinst.txt file
+// 
+// arguments:
+// FILE *traceinst_file - pointer to traceinst.txt
+//
 void PrintTo_traceinst_file(FILE *traceinst_file)
 {
 	int i;
@@ -116,30 +143,40 @@ void PrintTo_traceinst_file(FILE *traceinst_file)
 	}
 }
 
-void PrintTo_regout_file(FILE *traceinst_file)
+// printing to regout.txt file
+// 
+// arguments:
+// FILE *regout_file - pointer to regout.txt
+//
+void PrintTo_regout_file(FILE *regout_file)
 {
 	int i;
 	for (i = 0; i < NUM_OF_REGISTERS; i++)
 	{
-		fprintf(traceinst_file, "%.6f", registers[i].V);
+		fprintf(regout_file, "%.6f", registers[i].V);
 		if (i != NUM_OF_REGISTERS - 1)
 		{
-			fprintf(traceinst_file, "\n");
+			fprintf(regout_file, "\n");
 		}
 	}
 }
 
-void PrintTo_memout_file(FILE *traceinst_file)
+// printing to memout.txt file
+// 
+// arguments:
+// FILE *memout_file - pointer to memout.txt
+//
+void PrintTo_memout_file(FILE *memout_file)
 {
 	int i;
 	int last = FindLastNotZeroAddress();
 
 	for (i = 0; i <= last; i++)
 	{
-		fprintf(traceinst_file, "%08x", mem[i]);
+		fprintf(memout_file, "%08x", mem[i]);
 		if (i != last)
 		{
-			fprintf(traceinst_file, "\n");
+			fprintf(memout_file, "\n");
 		}
 	}
 }

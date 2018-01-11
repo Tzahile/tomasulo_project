@@ -21,7 +21,7 @@ void PopInstQueue(int *inst_queue_size);
 int SearchFirstNonBusy(Station *res_station, int size);
 
 
-int sbs(int x, int msb, int lsb);
+//int sbs(int x, int msb, int lsb);
 
 int sbs(int x, int msb, int lsb)
 {

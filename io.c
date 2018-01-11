@@ -2,6 +2,7 @@
 #include <stdio.h>
 #include <stdbool.h>
 #include <string.h>
+#include <math.h>
 
 #include "io.h"
 #include "common.h"
@@ -150,10 +151,11 @@ void PrintTo_traceinst_file(FILE *traceinst_file)
 //
 void PrintTo_regout_file(FILE *regout_file)
 {
-	int i;
+	int i, hex_value = 0;
 	for (i = 0; i < NUM_OF_REGISTERS; i++)
 	{
 		fprintf(regout_file, "%.6f", registers[i].V);
+		//GetFloatToBin	(registers[i].V)
 		if (i != NUM_OF_REGISTERS - 1)
 		{
 			fprintf(regout_file, "\n");
@@ -179,4 +181,44 @@ void PrintTo_memout_file(FILE *memout_file)
 			fprintf(memout_file, "\n");
 		}
 	}
+}
+
+float GetSinglePrecisionFormat(int sign, int exponent, int fraction)
+{
+	float result = 0;
+	int i;
+	for (i = 0; i < 23; i++)
+	{
+		if ((fraction & (1 << (22 - i))) > 0)
+		{
+			result += (float)pow(2, -(i+1));
+		}
+	}
+	return (float)( pow(-1, sign) * (1 + result) * pow(2, exponent - BIAS) );
+}
+
+int GetFloatToBin(float number)
+{
+	int sign = 0, i = 0, result = 0;
+	int exponent = 0;
+	float fraction = 0;
+	if (number < 0)
+	{
+		sign = 1;
+	}
+	exponent = BIAS + (int)floor(log2( fabsf(number)));
+	float absRes = fabsf(number);
+	float powRes = powf(2.0, (float)(exponent - BIAS));
+	fraction = (float)( absRes / powRes - 1.0);
+	for (i = 1; i <= 23; i++)
+	{
+		if (fraction - powf(2.0, (float)-i) >= 0.0) {
+			result = result | (1 << (22 - (i-1)));
+			fraction -= powf(2.0, (float)-i);
+		}
+		
+	}
+	exponent <<= 23;
+	sign <<= 31;
+	return (sign | exponent | result);
 }

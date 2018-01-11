@@ -29,4 +29,6 @@
 #define RES_STAT_FULL -1
 #define NUMBER_OF_RES_STATIONS 5
 
+#define BIAS 127
+
 #endif

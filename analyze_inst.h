@@ -22,6 +22,7 @@ typedef struct _InstQueue {
 	int original_inst;
 } InstQueue;
 
+int sbs(int x, int msb, int lsb);
 void DecodeInst(int inst, int *op, int *dst, int *src0, int *src1, int *imm);
 void InitRegistersStruct();
 int Fetch(int last, int *PC, int *inst_queue_size, bool *is_halt);

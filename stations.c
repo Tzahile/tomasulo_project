@@ -32,7 +32,7 @@ bool CDB(CfgParameters *cfg_parameters, Station *res_station, int size, int cycl
 int FindLastExecCycle(Station *res_station, int size);
 int getMax(int num[], int size);
 int getNumOfBusy(Station *res_station, int size);
-int DoMemCalc(Station *inst);
+float DoMemCalc(Station *inst);
 
 void PrepareReservationStations(CfgParameters *cfg_parameters) {
 	add_sub_res_stations = (Station *)calloc(cfg_parameters->add_nr_reservation, sizeof(Station));
@@ -77,6 +77,10 @@ void EnterToReservationStation(InstQueue inst, Station *res_station, int size, i
 		res_station[size].q_j = DIV_RESORVATION_STATION;
 		res_station[size].q_j_station_offset = registers[inst.src0].station_offset;
 		break;
+	case LOAD_RESORVATION_STATION:
+		res_station[size].q_j = LOAD_RESORVATION_STATION;
+		res_station[size].q_j_station_offset = registers[inst.src0].station_offset;
+		break;
 	case 0:
 		res_station[size].v_j = registers[inst.src0].V;
 		res_station[size].q_j = 0;
@@ -93,6 +97,10 @@ void EnterToReservationStation(InstQueue inst, Station *res_station, int size, i
 		break;
 	case DIV_RESORVATION_STATION:
 		res_station[size].q_k = DIV_RESORVATION_STATION;
+		res_station[size].q_k_station_offset = registers[inst.src1].station_offset;
+		break;
+	case LOAD_RESORVATION_STATION:
+		res_station[size].q_k = LOAD_RESORVATION_STATION;
 		res_station[size].q_k_station_offset = registers[inst.src1].station_offset;
 		break;
 	case 0:
@@ -141,7 +149,8 @@ void EnterToIssueList(Station *res_station, int offset, int cycle)
 		if (issue_list[i].is_busy == false)
 		{
 			issue_list[i].is_busy = true;
-			issue_list[i].original_inst = res_station->original_inst;
+			//issue_list[i].original_inst = res_station->original_inst;
+			issue_list[i].original_inst = res_station[offset].original_inst;
 			issue_list[i].cycle_issued = cycle;
 			issue_list[i].PC = i;
 			res_station[offset].PC = i;
@@ -313,7 +322,9 @@ bool CDB(CfgParameters *cfg_parameters, Station *res_station, int size, int cycl
 			}
 			if (res_station[i].is_store == true)
 			{
-				mem[(int)dst_result] = res_station[i].imm;
+				//mem[(int)dst_result] = res_station[i].imm;
+				//mem[res_station[i].imm] = (int)dst_result;
+				mem[res_station[i].imm] = GetFloatToBin(dst_result);
 			}
 			RemoveLabel(add_sub_res_stations, getReservationType(&res_station[i]), i, cfg_parameters->add_nr_reservation, dst_result);
 			RemoveLabel(mul_res_stations, getReservationType(&res_station[i]), i, cfg_parameters->mul_nr_reservation, dst_result);
@@ -350,13 +361,19 @@ float DoArithmeticCalc(Station *inst)
 	return inst->v_j / inst->v_k;
 }
 
-int DoMemCalc(Station *inst)
+float DoMemCalc(Station *inst)
 {
 	if (inst->is_load == true)
 	{
-		return mem[inst->imm];
+		int sign = sbs(mem[inst->imm], 31, 31);
+		int exponent = sbs(mem[inst->imm], 30, 23);
+		int fraction = sbs(mem[inst->imm], 22, 0);
+		return GetSinglePrecisionFormat(sign, exponent, fraction);
+		//return mem[inst->imm];
 	}
-	return (int)registers[(int)inst->v_k].V;
+	//return (int)registers[(int)inst->v_k].V;
+	return inst->v_k;
+	//return GetFloatToBin(inst->v_k);
 }
 
 void RemoveLabel(Station *res_station, int type, int offset, int res_size, float dst_result)
@@ -506,9 +523,13 @@ void PrintTo_tracecdb_file(FILE *tracecdb_file, Station res_station, int offset,
 	{
 		fprintf(tracecdb_file, "DIV");
 	}
-	else if (res_station.is_load || res_station.is_store)
+	else if (res_station.is_load)
 	{
-		fprintf(tracecdb_file, "MEM");
+		fprintf(tracecdb_file, "LD");
+	}
+	else if (res_station.is_store)
+	{
+		fprintf(tracecdb_file, "ST");
 	}
 	fprintf(tracecdb_file, "%d", offset);
 	fprintf(tracecdb_file, "\n");

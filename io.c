@@ -155,7 +155,6 @@ void PrintTo_regout_file(FILE *regout_file)
 	for (i = 0; i < NUM_OF_REGISTERS; i++)
 	{
 		fprintf(regout_file, "%.6f", registers[i].V);
-		//GetFloatToBin	(registers[i].V)
 		if (i != NUM_OF_REGISTERS - 1)
 		{
 			fprintf(regout_file, "\n");
@@ -182,7 +181,15 @@ void PrintTo_memout_file(FILE *memout_file)
 		}
 	}
 }
-
+// converts an single precision format to decimal number (4.5689 for example)
+//
+// arguments:
+// int sign - the sign bit as presented in the single precision number.
+// int exponent - the exponent part of the number.
+// int fraction - the fraction part of the number.
+//
+// the function returns the decimal representation of the number.
+//
 float GetSinglePrecisionFormat(int sign, int exponent, int fraction)
 {
 	float result = 0;
@@ -197,6 +204,12 @@ float GetSinglePrecisionFormat(int sign, int exponent, int fraction)
 	return (float)( pow(-1, sign) * (1 + result) * pow(2, exponent - BIAS) );
 }
 
+// converts an desimal number to its single precision format.
+//
+// arguments:
+// float number - the decimal number we want to convert
+//
+// the function return 8 HEX digits, representation the number in single precision format.
 int GetFloatToBin(float number)
 {
 	int sign = 0, i = 0, result = 0;

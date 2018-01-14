@@ -42,7 +42,7 @@ int main(int argc, char *argv[]) {
 	bool is_add_exec_occupied = false, is_mult_exec_occupied = false, is_div_exec_occupied = false;
 	bool is_halt = false;
 	int nr_instrs_read = 0;
-	int err_code = SUCCESS; //last = 0;
+	int err_code = SUCCESS;
 	int cycle = 0;
 	int PC = 0;
 	int inst_queue_size = 0;

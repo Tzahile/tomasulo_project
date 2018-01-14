@@ -20,16 +20,14 @@ void UpdateRegisters(int station_name, int dst, int relevent_size);
 void PopInstQueue(int *inst_queue_size);
 int SearchFirstNonBusy(Station *res_station, int size);
 
-
-//int sbs(int x, int msb, int lsb);
-
+// gets the value between lsd and msb bits of the number x.
 int sbs(int x, int msb, int lsb)
 {
 	if (msb == 31 && lsb == 0)
 		return x;
 	return (x >> lsb) & ((1 << (msb - lsb + 1)) - 1);
 }
-
+// the function returns all the fields of the instruction
 void DecodeInst(int inst, int *op, int *dst, int *src0, int *src1, int *imm) {
 	*op = sbs(inst, 27, 24);
 	*dst = sbs(inst, 23, 20);
@@ -38,6 +36,7 @@ void DecodeInst(int inst, int *op, int *dst, int *src0, int *src1, int *imm) {
 	*imm = sbs(inst, 11, 0);
 }
 
+// sets the register file struct to zeros (initializing it).
 void InitRegistersStruct() {
 	int i = 0;
 	for (i = 0; i < NUM_OF_REGISTERS; i++) {
@@ -48,6 +47,14 @@ void InitRegistersStruct() {
 	}
 }
 
+// Does the Fatch progress: Enters new instructions to inst queue (if enough place).
+// if the instruction is halt, don't enter to inst queue.
+//
+// int last - the last inst address in memin.
+// int *PC (output) - the PC of the current inst.
+// int *inst_queue_size (output) - the current size of the inst queue.
+// bool *is_halt (output) - will be 'true' if the current inst is HALT. otherwise, 'false'.
+//
 // return the number of new instruction entered to instruction queue.
 int Fetch(int last, int *PC, int *inst_queue_size, bool *is_halt) {
 	int op, dst, src0, src1, imm, inst, new_insts = 0;
@@ -70,6 +77,17 @@ int Fetch(int last, int *PC, int *inst_queue_size, bool *is_halt) {
 	return new_insts;
 }
 
+// enter the instruction to instruction queue.
+//
+// arguments:
+// int inst - the original instruction (8 HEX digits).
+// int op - the op code of the instruction.
+// int dst - the dst register number
+// int src0 - the src0 register number
+// int src1 - the src1 register number
+// int imm - the imm value.
+// int inst_queue_size - the index where to put the inst in the inst queue.
+//
 void EnterToInstQueue(int inst, int op, int dst, int src0, int src1, int imm, int inst_queue_size) {
 	inst_queue[inst_queue_size].original_inst = inst;
 	inst_queue[inst_queue_size].op = op;
@@ -80,6 +98,13 @@ void EnterToInstQueue(int inst, int op, int dst, int src0, int src1, int imm, in
 	inst_queue[inst_queue_size].is_busy = true;
 }
 
+// Doing the issue progress.
+//
+// arguments:
+// CfgParameters *cfg_parameters - the struct conatining all parameters in the parameters file.
+// int *inst_queue_size - the first usused alot in the inst queue.
+// int cycle - current cycle
+//
 void Issue(CfgParameters *cfg_parameters, int *inst_queue_size, int cycle)
 {
 	int op, dst, non_busy_offset = 0;
@@ -139,7 +164,6 @@ void Issue(CfgParameters *cfg_parameters, int *inst_queue_size, int cycle)
 					return;
 				}
 				EnterToReservationStation(inst_queue[0], store_res_stations, non_busy_offset, cycle, cfg_parameters);
-				//UpdateRegisters(STORE_RESORVATION_STATION, dst, non_busy_offset);
 				PopInstQueue(inst_queue_size);
 				break;
 			case OP_HALT:
@@ -147,6 +171,13 @@ void Issue(CfgParameters *cfg_parameters, int *inst_queue_size, int cycle)
 		}
 }
 
+// finds the first unused (not busy) slot in a reservation station.
+//
+// arguments:
+// Station *res_station - the reservation station we want to find the first not busy slot.
+// int size - the maximum size of this reservation station (as in parameters file).
+//
+// returns the first free slot in the reservation station
 int SearchFirstNonBusy(Station *res_station, int size) {
 	int offset = 0;
 	for (offset = 0; offset < size; offset++)
@@ -157,12 +188,24 @@ int SearchFirstNonBusy(Station *res_station, int size) {
 	return RES_STAT_FULL;
 }
 
+// sets the Q and station_offset in the register struct array
+//
+// arguments:
+// int station_name - the Q (TAG)
+// int dst - the register we want to change
+// relevent_size - the offset in the TAG (ADD1 vs ADD2 for example).
+//
 void UpdateRegisters(int station_name, int dst, int relevent_size)
 {
 	registers[dst].Q = station_name;
 	registers[dst].station_offset = relevent_size;
 }
 
+// Pops the first inst in the inst queue, once this inst was issued.
+//
+// arguments:
+// int *inst_queue_size - the current size of the inst queue.
+//
 void PopInstQueue(int *inst_queue_size)
 {
 	int i;

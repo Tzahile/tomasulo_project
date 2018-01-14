@@ -22,7 +22,7 @@ extern Files files_struct;
 void ClearResSlot(Station *res_station, int offset);
 void SetReadyForExec(Station *res_station, int res_size, int cycle);
 int GetNumberOfWorkingExecUnits(Station *res_station, int res_size);
-bool EnterToExec(Station *res_station, int res_size, int nr_of_exec_units, int nr_of_working_exec_units, int cycle, int cycles_in_exec);
+bool EnterToExec(Station *res_station, Station *res_station_2, int res_size, int res_size_2, int nr_of_exec_units, int nr_of_working_exec_units, int cycle, int cycles_in_exec);
 void RemoveLabel(Station *res_station, int type, int offset, int res_size, float dst_result);
 float DoArithmeticCalc(Station *inst);
 void PutInReservationStation(Station *required_res_station, int inst_queue_size);
@@ -33,7 +33,13 @@ int FindLastExecCycle(Station *res_station, int size);
 int getMax(int num[], int size);
 int getNumOfBusy(Station *res_station, int size);
 float DoMemCalc(Station *inst);
+bool LowestRelativePC(Station *res_station, int res_size, Station *res_station_2, int res_size_2);
 
+// mallocs memory for all reservation stations data structures in the program
+//
+// arguments:
+// CfgParameters *cfg_parameters - to get the size of each reservation station.
+//
 void PrepareReservationStations(CfgParameters *cfg_parameters) {
 	add_sub_res_stations = (Station *)calloc(cfg_parameters->add_nr_reservation, sizeof(Station));
 	if (add_sub_res_stations == NULL) {
@@ -62,6 +68,15 @@ void PutInReservationStation(Station *required_res_station, int inst_queue_size)
 	required_res_station->is_busy = true;
 }
 
+// enters an inst to the corresponding reservation station.
+//
+// arguments:
+// InstQueue inst - the inst we want to enter to the reservation station (it will be the inst_queue[0]).
+// Station *res_station - the reservation station we want to enter the inst.
+// int size - the slot we want to put the inst in the reservation station data structure.
+// int cycle - current cycle.
+// CfgParameters *cfg_parameters - the paramenters as in parameters.txt
+//
 void EnterToReservationStation(InstQueue inst, Station *res_station, int size, int cycle, CfgParameters *cfg_parameters)
 {
 	switch (registers[inst.src0].Q) {
@@ -141,6 +156,7 @@ void EnterToReservationStation(InstQueue inst, Station *res_station, int size, i
 	EnterToIssueList(res_station, size, cycle);
 }
 
+// enters an inst to the issue_list data structure.
 void EnterToIssueList(Station *res_station, int offset, int cycle)
 {
 	int i;
@@ -149,7 +165,6 @@ void EnterToIssueList(Station *res_station, int offset, int cycle)
 		if (issue_list[i].is_busy == false)
 		{
 			issue_list[i].is_busy = true;
-			//issue_list[i].original_inst = res_station->original_inst;
 			issue_list[i].original_inst = res_station[offset].original_inst;
 			issue_list[i].cycle_issued = cycle;
 			issue_list[i].PC = i;
@@ -161,6 +176,10 @@ void EnterToIssueList(Station *res_station, int offset, int cycle)
 	}
 }
 
+// execute an inst. This function go through all the reservation satations and finds all
+// the insts that are ready to exec, and sets their is_ready_for_exec flag to true.
+// after that it calls the DealWithCDB that will send inst to the CDB (if available).
+// 
 void Exec(CfgParameters *cfg_parameters, int cycle)
 {
 	int current_add_sub_in_exec = 0, working_units = 0, mem_working_units = 0;
@@ -170,31 +189,36 @@ void Exec(CfgParameters *cfg_parameters, int cycle)
 	// Add-SUB
 	working_units = GetNumberOfWorkingExecUnits(add_sub_res_stations, cfg_parameters->add_nr_reservation);
 	SetReadyForExec(add_sub_res_stations, cfg_parameters->add_nr_reservation, cycle);
-	EnterToExec(add_sub_res_stations, cfg_parameters->add_nr_reservation, cfg_parameters->add_nr_units, working_units, cycle, cfg_parameters->add_delay);
+	EnterToExec(add_sub_res_stations, NULL, cfg_parameters->add_nr_reservation, 0, cfg_parameters->add_nr_units, working_units, cycle, cfg_parameters->add_delay);
 
 	// MUL
 	working_units = GetNumberOfWorkingExecUnits(mul_res_stations, cfg_parameters->mul_nr_reservation);
 	SetReadyForExec(mul_res_stations, cfg_parameters->mul_nr_reservation, cycle);
-	EnterToExec(mul_res_stations, cfg_parameters->mul_nr_reservation, cfg_parameters->mul_nr_units, working_units, cycle, cfg_parameters->mul_delay);
+	EnterToExec(mul_res_stations, NULL, cfg_parameters->mul_nr_reservation, 0, cfg_parameters->mul_nr_units, working_units, cycle, cfg_parameters->mul_delay);
 
 	// DIV
 	working_units = GetNumberOfWorkingExecUnits(divide_res_stations, cfg_parameters->div_nr_reservation);
 	SetReadyForExec(divide_res_stations, cfg_parameters->div_nr_reservation, cycle);
-	EnterToExec(divide_res_stations, cfg_parameters->div_nr_reservation, cfg_parameters->div_nr_units, working_units, cycle, cfg_parameters->div_delay);
-
-	// LOAD
+	EnterToExec(divide_res_stations, NULL, cfg_parameters->div_nr_reservation, 0, cfg_parameters->div_nr_units, working_units, cycle, cfg_parameters->div_delay);
+	
+	// LOAD or STORE
 	working_units = GetNumberOfWorkingExecUnits(load_res_stations, cfg_parameters->mem_nr_load_buffers);
+	mem_working_units = working_units + GetNumberOfWorkingExecUnits(store_res_stations, cfg_parameters->mem_nr_store_buffers);
+
 	SetReadyForExec(load_res_stations, cfg_parameters->mem_nr_load_buffers, cycle);
-	is_load_just_entered = EnterToExec(load_res_stations, cfg_parameters->mem_nr_load_buffers, LOAD_NR_UNITS, working_units, cycle, cfg_parameters->mem_delay);
+	SetReadyForExec(store_res_stations, cfg_parameters->mem_nr_store_buffers, cycle);
+	//is_load_just_entered = EnterToExec(load_res_stations, store_res_stations, cfg_parameters->mem_nr_load_buffers, LOAD_NR_UNITS, working_units, cycle, cfg_parameters->mem_delay);
+	EnterToExec(load_res_stations, store_res_stations, cfg_parameters->mem_nr_load_buffers, cfg_parameters->mem_nr_store_buffers, LOAD_NR_UNITS, mem_working_units, cycle, cfg_parameters->mem_delay);
+	EnterToExec(store_res_stations, load_res_stations, cfg_parameters->mem_nr_store_buffers, cfg_parameters->mem_nr_load_buffers, STORE_NR_UNITS, mem_working_units, cycle, cfg_parameters->mem_delay);
 
 	// STORE
-	if (is_load_just_entered == false)
+	/*if (is_load_just_entered == false)
 	{
 		working_units = GetNumberOfWorkingExecUnits(store_res_stations, cfg_parameters->mem_nr_store_buffers);
 		//mem_working_units = working_units + GetNumberOfWorkingExecUnits(load_res_stations, cfg_parameters->mem_nr_load_buffers);
 		SetReadyForExec(store_res_stations, cfg_parameters->mem_nr_store_buffers, cycle);
 		EnterToExec(store_res_stations, cfg_parameters->mem_nr_store_buffers, STORE_NR_UNITS, 0, cycle, cfg_parameters->mem_delay);
-	}
+	}*/
 	// CDBs
 
 	DealWithCDB(cfg_parameters, cycle);
@@ -207,9 +231,9 @@ void DealWithCDB(CfgParameters *cfg_parameters, int cycle)
 	CDB(cfg_parameters, mul_res_stations, cfg_parameters->mul_nr_reservation, cycle);
 	CDB(cfg_parameters, divide_res_stations, cfg_parameters->div_nr_reservation, cycle);
 	is_load_in_CDB = CDB(cfg_parameters, load_res_stations, cfg_parameters->mem_nr_load_buffers, cycle);
-	if (is_load_in_CDB == false) {
+	//if (is_load_in_CDB == false) {
 		CDB(cfg_parameters, store_res_stations, cfg_parameters->mem_nr_store_buffers, cycle);
-	}
+	//}
 }
 
 // clears resorvation station slot to its defaults (0, NULL and false).
@@ -265,6 +289,15 @@ void SetReadyForExec(Station *res_station, int res_size, int cycle)
 	}
 }
 
+// counts the number of busy execution units for a specific reservation station.
+// It counts the number of 'is_in_exec = true' in the reservation station.
+// 
+// arguments:
+// Station *res_station - the reservation station.
+// int res_size - the size of the reservation station.
+//
+// the function returns the number of busy execution units for a specific reservation station.
+//
 int GetNumberOfWorkingExecUnits(Station *res_station, int res_size)
 {
 	int i, counter = 0;
@@ -277,9 +310,16 @@ int GetNumberOfWorkingExecUnits(Station *res_station, int res_size)
 	return counter;
 }
 
-bool EnterToExec(Station *res_station, int res_size, int nr_of_exec_units, int nr_of_working_exec_units, int cycle, int cycles_in_exec)
+// finds the first inst that has the field 'is_ready_for_exec' equals true, and sets its field to 'is_in_exec' to true (only if an exec unit is available).
+//
+// arguments:
+// Station *res_station - the reservation station we want to enter 
+//
+//
+bool EnterToExec(Station *res_station, Station *res_station_2, int res_size, int res_size_2, int nr_of_exec_units, int nr_of_working_exec_units, int cycle, int cycles_in_exec)
 {
 	int i, nr_of_empty_exec_units = nr_of_exec_units - nr_of_working_exec_units;
+	bool is_first = false;
 	for (i = 0; i < res_size; i++)
 	{
 		if (res_station[i].is_ready_for_exec == true)
@@ -287,14 +327,37 @@ bool EnterToExec(Station *res_station, int res_size, int nr_of_exec_units, int n
 			if (nr_of_empty_exec_units == 0) {
 				break;
 			}
-			res_station[i].is_in_exec = true;
-			res_station[i].cycle_to_finish_exec = cycle + cycles_in_exec - 1;
 
-			issue_list[res_station[i].PC].cycle_execute_start = cycle;
-			issue_list[res_station[i].PC].cycle_execute_end = res_station[i].cycle_to_finish_exec;
+			if (res_station[i].is_load == true || res_station[i].is_store == true)
+			{
+				is_first = LowestRelativePC(res_station, res_size, res_station_2, res_size_2);
 
+				if (is_first == true)
+				{
+					res_station[i].is_in_exec = true;
+					res_station[i].cycle_to_finish_exec = cycle + cycles_in_exec - 1;
+
+					issue_list[res_station[i].PC].cycle_execute_start = cycle;
+					issue_list[res_station[i].PC].cycle_execute_end = res_station[i].cycle_to_finish_exec;
+				}
+				else
+				{
+					res_station_2[i].is_in_exec = true;
+					res_station_2[i].cycle_to_finish_exec = cycle + cycles_in_exec - 1;
+
+					issue_list[res_station_2[i].PC].cycle_execute_start = cycle;
+					issue_list[res_station_2[i].PC].cycle_execute_end = res_station_2[i].cycle_to_finish_exec;
+				}
+			}
+			else {
+				res_station[i].is_in_exec = true;
+				res_station[i].cycle_to_finish_exec = cycle + cycles_in_exec - 1;
+
+				issue_list[res_station[i].PC].cycle_execute_start = cycle;
+				issue_list[res_station[i].PC].cycle_execute_end = res_station[i].cycle_to_finish_exec;
+			}
 			nr_of_empty_exec_units--;
-			return true;
+			//return true; //
 		}
 	}
 	return false;
@@ -322,8 +385,6 @@ bool CDB(CfgParameters *cfg_parameters, Station *res_station, int size, int cycl
 			}
 			if (res_station[i].is_store == true)
 			{
-				//mem[(int)dst_result] = res_station[i].imm;
-				//mem[res_station[i].imm] = (int)dst_result;
 				mem[res_station[i].imm] = GetFloatToBin(dst_result);
 			}
 			RemoveLabel(add_sub_res_stations, getReservationType(&res_station[i]), i, cfg_parameters->add_nr_reservation, dst_result);
@@ -369,11 +430,8 @@ float DoMemCalc(Station *inst)
 		int exponent = sbs(mem[inst->imm], 30, 23);
 		int fraction = sbs(mem[inst->imm], 22, 0);
 		return GetSinglePrecisionFormat(sign, exponent, fraction);
-		//return mem[inst->imm];
 	}
-	//return (int)registers[(int)inst->v_k].V;
 	return inst->v_k;
-	//return GetFloatToBin(inst->v_k);
 }
 
 void RemoveLabel(Station *res_station, int type, int offset, int res_size, float dst_result)
@@ -490,7 +548,14 @@ int getNumOfBusy(Station *res_station, int size)
 
 void PrintTo_tracecdb_file(FILE *tracecdb_file, Station res_station, int offset, int cycle, float data_on_cdb)
 {
-	fprintf(tracecdb_file, "%d ", cycle);
+	if(res_station.is_store)
+	{
+		fprintf(tracecdb_file, "-1 ");
+	}
+	else
+	{
+		fprintf(tracecdb_file, "%d ", cycle);
+	}
 	fprintf(tracecdb_file, "%d ", res_station.PC);
 	if (res_station.is_add || res_station.is_sub)
 	{
@@ -533,4 +598,27 @@ void PrintTo_tracecdb_file(FILE *tracecdb_file, Station res_station, int offset,
 	}
 	fprintf(tracecdb_file, "%d", offset);
 	fprintf(tracecdb_file, "\n");
+}
+bool LowestRelativePC(Station *res_station, int res_size, Station *res_station_2, int res_size_2)
+{
+	int i, lowest_pc = MEM_SIZE, lowest_pc_2 = MEM_SIZE;
+	for (i = 0; i < res_size; i++)
+	{
+		if (res_station[i].is_ready_for_exec == true) {
+			if (res_station[i].PC < lowest_pc)
+			{
+				lowest_pc = res_station[i].PC;
+			}
+		}
+	}
+	for (i = 0; i < res_size_2; i++)
+	{
+		if (res_station_2[i].is_ready_for_exec == true) {
+			if (res_station_2[i].PC < lowest_pc_2)
+			{
+				lowest_pc_2 = res_station_2[i].PC;
+			}
+		}
+	}
+	return (lowest_pc < lowest_pc_2);
 }

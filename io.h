@@ -4,9 +4,6 @@
 #include <stdio.h>
 #include <stdbool.h>
 
-//#include "stations.h"
-
-
 typedef struct _Files{
 	FILE *cfg;
 	FILE *memin;

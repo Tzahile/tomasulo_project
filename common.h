@@ -5,7 +5,7 @@
 #define SUCCESS 0
 #define NUM_OF_OP_CODES 7
 #define NUM_OF_REGISTERS 16
-#define MEM_SIZE 1<<12
+#define MEM_SIZE 1 << 12
 #define NUM_OF_CFG_PARAMETERS 12
 #define OP_CODE_MAX_CHARS 5
 #define INST_QUEUE_SIZE 16
@@ -13,7 +13,7 @@
 #define OP_LOAD 0
 #define OP_STORE 1
 #define OP_ADD 2
-#define OP_SUB  3
+#define OP_SUB 3
 #define OP_MULT 4
 #define OP_DIV 5
 #define OP_HALT 6

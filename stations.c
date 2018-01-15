@@ -20,6 +20,7 @@ extern Registers registers[NUM_OF_REGISTERS];
 extern CDB_status CDB_status_var;
 extern IssueList *issue_list;
 extern Files files_struct;
+extern int busy_memory[MEM_SIZE];
 
 void ClearResSlot(Station *res_station, int offset);
 void SetReadyForExec(Station *res_station, int res_size, int cycle);
@@ -156,6 +157,7 @@ void EnterToReservationStation(InstQueue inst, Station *res_station, int size,
     break;
   case OP_STORE:
     res_station[size].is_store = true;
+
     break;
   case OP_LOAD:
     res_station[size].is_load = true;
@@ -169,6 +171,9 @@ void EnterToReservationStation(InstQueue inst, Station *res_station, int size,
   res_station[size].imm = inst.imm;
 
   EnterToIssueList(res_station, size, cycle);
+  if (inst.op == OP_STORE) {
+    busy_memory[res_station[size].imm] = res_station[size].PC;
+  }
 }
 
 // enters an inst to the issue_list data structure.
@@ -323,13 +328,19 @@ void ClearResSlot(Station *res_station, int offset) {
 //
 void SetReadyForExec(Station *res_station, int res_size, int cycle) {
   int i;
+  bool is_memory_busy;
   for (i = 0; i < res_size; i++) {
+    is_memory_busy = (busy_memory[res_station[i].imm] != 0 &&
+                      busy_memory[res_station[i].imm] < res_station[i].PC);
     if (res_station[i].is_busy == true &&
         (cycle > res_station[i].cycle_entered) &&
         res_station[i].is_in_exec == false && res_station[i].q_j == 0 &&
         res_station[i].q_k == 0) {
       res_station[i].is_ready_for_exec = true;
     } else {
+      res_station[i].is_ready_for_exec = false;
+    }
+    if (res_station[i].is_load && is_memory_busy) {
       res_station[i].is_ready_for_exec = false;
     }
   }
@@ -430,6 +441,7 @@ bool CDB(CfgParameters *cfg_parameters, Station *res_station, int size,
       }
       if (res_station[i].is_store == true) {
         mem[res_station[i].imm] = GetFloatToBin(dst_result);
+        busy_memory[res_station[i].imm] = 0;
       }
       RemoveLabel(add_sub_res_stations, getReservationType(&res_station[i]), i,
                   cfg_parameters->add_nr_reservation, dst_result);

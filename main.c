@@ -37,6 +37,7 @@ Registers registers[NUM_OF_REGISTERS] = {0};
 CDB_status CDB_status_var = {false};
 IssueList *issue_list = {0};
 Files files_struct = {NULL};
+int busy_memory[MEM_SIZE] = {0};
 
 // the main function
 //

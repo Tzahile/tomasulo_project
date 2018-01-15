@@ -40,8 +40,10 @@ int FindLastExecCycle(Station *res_station, int size);
 int getMax(int num[], int size);
 int getNumOfBusy(Station *res_station, int size);
 float DoMemCalc(Station *inst);
+// bool LowestRelativePC(Station *res_station, int res_size, Station
+// *res_station_2, int res_size_2);
 bool LowestRelativePC(Station *res_station, int res_size,
-                      Station *res_station_2, int res_size_2);
+                      Station *res_station_2, int res_size_2, int cycle);
 
 // mallocs memory for all reservation stations data structures in the program
 //
@@ -195,7 +197,7 @@ void Exec(CfgParameters *cfg_parameters, int cycle) {
   int current_add_sub_in_exec = 0, working_units = 0, mem_working_units = 0;
   bool is_add_sub_exec_busy = false, is_mul_exec_busy = false,
        is_divide_res_stations_busy = false;
-  bool is_load_just_entered = false;
+  bool is_mem_just_entered = false;
 
   // Add-SUB
   working_units = GetNumberOfWorkingExecUnits(
@@ -237,14 +239,16 @@ void Exec(CfgParameters *cfg_parameters, int cycle) {
   // is_load_just_entered = EnterToExec(load_res_stations, store_res_stations,
   // cfg_parameters->mem_nr_load_buffers, LOAD_NR_UNITS, working_units, cycle,
   // cfg_parameters->mem_delay);
-  EnterToExec(load_res_stations, store_res_stations,
-              cfg_parameters->mem_nr_load_buffers,
-              cfg_parameters->mem_nr_store_buffers, LOAD_NR_UNITS,
-              mem_working_units, cycle, cfg_parameters->mem_delay);
-  EnterToExec(store_res_stations, load_res_stations,
-              cfg_parameters->mem_nr_store_buffers,
-              cfg_parameters->mem_nr_load_buffers, STORE_NR_UNITS,
-              mem_working_units, cycle, cfg_parameters->mem_delay);
+  is_mem_just_entered = EnterToExec(
+      load_res_stations, store_res_stations,
+      cfg_parameters->mem_nr_load_buffers, cfg_parameters->mem_nr_store_buffers,
+      LOAD_NR_UNITS, mem_working_units, cycle, cfg_parameters->mem_delay);
+  if (is_mem_just_entered == false) {
+    EnterToExec(store_res_stations, load_res_stations,
+                cfg_parameters->mem_nr_store_buffers,
+                cfg_parameters->mem_nr_load_buffers, STORE_NR_UNITS,
+                mem_working_units, cycle, cfg_parameters->mem_delay);
+  }
 
   // STORE
   /*if (is_load_just_entered == false)
@@ -374,8 +378,8 @@ bool EnterToExec(Station *res_station, Station *res_station_2, int res_size,
       } //
 
       if (res_station[i].is_load == true || res_station[i].is_store == true) {
-        is_first =
-            LowestRelativePC(res_station, res_size, res_station_2, res_size_2);
+        is_first = LowestRelativePC(res_station, res_size, res_station_2,
+                                    res_size_2, cycle);
 
         if (is_first == true) {
           res_station[i].is_in_exec = true;
@@ -392,7 +396,7 @@ bool EnterToExec(Station *res_station, Station *res_station_2, int res_size,
           issue_list[res_station_2[i].PC].cycle_execute_end =
               res_station_2[i].cycle_to_finish_exec;
         }
-        return false; //
+        return true; //
       } else {
         res_station[i].is_in_exec = true;
         res_station[i].cycle_to_finish_exec = cycle + cycles_in_exec - 1;
@@ -608,17 +612,19 @@ void PrintTo_tracecdb_file(FILE *tracecdb_file, Station res_station, int offset,
   fprintf(tracecdb_file, "\n");
 }
 bool LowestRelativePC(Station *res_station, int res_size,
-                      Station *res_station_2, int res_size_2) {
+                      Station *res_station_2, int res_size_2, int cycle) {
   int i, lowest_pc = MEM_SIZE, lowest_pc_2 = MEM_SIZE;
   for (i = 0; i < res_size; i++) {
-    if (res_station[i].is_ready_for_exec == true) {
+    if (res_station[i].is_ready_for_exec == true &&
+        res_station[i].is_in_exec == false) {
       if (res_station[i].PC < lowest_pc) {
         lowest_pc = res_station[i].PC;
       }
     }
   }
   for (i = 0; i < res_size_2; i++) {
-    if (res_station_2[i].is_ready_for_exec == true) {
+    if (res_station_2[i].is_ready_for_exec == true &&
+        res_station[i].is_in_exec == false) {
       if (res_station_2[i].PC < lowest_pc_2) {
         lowest_pc_2 = res_station_2[i].PC;
       }

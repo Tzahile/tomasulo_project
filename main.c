@@ -67,7 +67,7 @@ int main(int argc, char *argv[]) {
   nr_instrs_read += Fetch(last, &PC, &inst_queue_size, &is_halt);
   // end of cycle 0
   cycle++;
-  while (isBusy(&cfg_parameters) || cycle == 1) {
+  while ((isBusy(&cfg_parameters) || cycle == 1)) {
     // cycle 1, 2, 3, 4, ...
     Issue(&cfg_parameters, &inst_queue_size, cycle);
     Issue(&cfg_parameters, &inst_queue_size, cycle);
